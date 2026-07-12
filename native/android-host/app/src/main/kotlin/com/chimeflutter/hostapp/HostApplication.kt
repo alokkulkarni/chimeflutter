@@ -62,7 +62,12 @@ class HostApplication : Application() {
         bridge = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.chimeflutter.host/bridge")
         bridge?.setMethodCallHandler { call, result ->
             when (call.method) {
-                "getConfig" -> result.success(mapOf("backendBaseUrl" to HostConfig.backendBaseUrl))
+                "getConfig" -> result.success(
+                    mapOf(
+                        "backendBaseUrl" to HostConfig.backendBaseUrl,
+                        "enabledCallTypes" to HostConfig.enabledCallTypes,
+                    ),
+                )
                 "getAuthToken" -> result.success(AuthService.currentJwt())
                 "getCustomerContext" -> result.success(
                     mapOf(
@@ -125,6 +130,13 @@ object HostConfig {
     /** The `ApiBaseUrl` output of `sam deploy` — TODO: paste your deployed URL here. */
     val backendBaseUrl: String =
         System.getenv("BACKEND_BASE_URL") ?: "https://YOUR_API_ID.execute-api.eu-west-2.amazonaws.com/v1"
+
+    /**
+     * Which call types the in-app support UI offers: "audio,video" (default — the user picks on
+     * the audio/video chooser), "audio" or "video" (the chooser is skipped and that type dials
+     * immediately when the call screen opens).
+     */
+    val enabledCallTypes: String = System.getenv("ENABLED_CALL_TYPES") ?: "audio,video"
 }
 
 /** Placeholder for the host's real auth/session. Replace with your identity layer. */

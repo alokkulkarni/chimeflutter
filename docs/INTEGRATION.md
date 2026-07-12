@@ -84,6 +84,26 @@ customer context and provides them over the host bridge (`com.chimeflutter.host/
 The Flutter side is [`native/flutter_call_module/lib/main.dart`](../native/flutter_call_module/lib/main.dart)
 (entrypoint `mainHost`), whose `tokenProvider` is `HostBridge.getAuthToken`.
 
+### Audio/video offering (`enabledCallTypes`)
+
+The host's `getConfig` bridge reply includes `enabledCallTypes`, which controls what the call
+screen offers when it opens:
+
+| Value | Behaviour |
+|-------|-----------|
+| `"audio,video"` (default) | The chooser is shown — the user picks **Audio call** or **Video call**. |
+| `"audio"` | No chooser — an audio call dials **immediately** when the call screen opens. |
+| `"video"` | No chooser — a video call dials immediately. |
+
+On `"audio"` the in-call Video/Flip buttons are hidden too. After a hang-up the idle screen shows a
+single redial button for the sole type (it never auto-redials).
+
+Set it in `HostConfig`: iOS [`AppDelegate.swift`](../native/ios-host/HostApp/AppDelegate.swift)
+(`HostConfig.enabledCallTypes`, overridable via an `ENABLED_CALL_TYPES` scheme environment
+variable) · Android [`HostApplication.kt`](../native/android-host/app/src/main/kotlin/com/chimeflutter/hostapp/HostApplication.kt)
+(`HostConfig.enabledCallTypes`). Standalone module runs use
+`--dart-define=ENABLED_CALL_TYPES=…`. Unrecognised/empty values fall back to both.
+
 ### System call UI ("like WhatsApp")
 Set `ConnectWebRtcConfig(callKitEnabled: true)` (the host apps do) and the plugin reports the call to
 **CallKit** (iOS) / **Telecom** (Android) so the OS shows a real phone call with lock-screen controls

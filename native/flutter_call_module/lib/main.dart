@@ -19,24 +19,51 @@ Future<void> _bootstrap() async {
 /// Runtime configuration. In add-to-app, dart-defines do NOT flow through the embedded engine, so
 /// the native host supplies these over the bridge (`getConfig`); standalone runs use dart-defines.
 class AppConfig {
-  const AppConfig({required this.backendBaseUrl});
+  const AppConfig({required this.backendBaseUrl, required this.enabledCallTypes});
 
   final String backendBaseUrl;
 
+  /// Which call types the support UI offers. Both (the default) shows the audio/video chooser;
+  /// exactly one skips the chooser and dials that type immediately (see [soleCallType]).
+  final Set<CallType> enabledCallTypes;
+
   bool get isReady => backendBaseUrl.startsWith('http');
 
+  bool get videoEnabled => enabledCallTypes.contains(CallType.video);
+
+  /// Non-null when exactly one call type is enabled — the type to dial without asking.
+  CallType? get soleCallType => enabledCallTypes.length == 1 ? enabledCallTypes.first : null;
+
   static const String _defineBackend = String.fromEnvironment('BACKEND_BASE_URL');
+  static const String _defineCallTypes = String.fromEnvironment('ENABLED_CALL_TYPES');
+
+  /// Parses `"audio,video"` / `"audio"` / `"video"` (case- and space-tolerant). Empty or
+  /// unrecognised input falls back to both — a typo must never remove the ability to call.
+  static Set<CallType> parseCallTypes(String raw) {
+    final tokens = raw.toLowerCase().split(',').map((t) => t.trim()).toSet();
+    final types = <CallType>{
+      if (tokens.contains('audio')) CallType.audio,
+      if (tokens.contains('video')) CallType.video,
+    };
+    return types.isEmpty ? {CallType.audio, CallType.video} : types;
+  }
 
   /// Host bridge values win over dart-defines; missing values fall back.
   static Future<AppConfig> load() async {
     var backend = _defineBackend;
+    var callTypes = _defineCallTypes;
     try {
       final raw = await HostBridge.getConfig();
       backend = (raw['backendBaseUrl'] ?? '').isNotEmpty ? raw['backendBaseUrl']! : backend;
+      callTypes =
+          (raw['enabledCallTypes'] ?? '').isNotEmpty ? raw['enabledCallTypes']! : callTypes;
     } catch (_) {
       // No host handler (standalone run) — dart-defines only.
     }
-    return AppConfig(backendBaseUrl: backend);
+    return AppConfig(
+      backendBaseUrl: backend,
+      enabledCallTypes: parseCallTypes(callTypes),
+    );
   }
 }
 
@@ -201,6 +228,16 @@ class _CallHomeState extends State<CallHome> {
     HostBridge(_controller); // wire native ⇄ Flutter (kept alive by its handler + subscription)
     _controller.states.listen(_onState);
     _controller.events.listen(_onEvent);
+
+    // Single-call-type mode: skip the audio/video chooser and dial immediately on open. Only on
+    // first entry — after a call ends the idle screen shows a single redial button instead, so a
+    // hangup can never loop back into a new call.
+    final sole = widget.config.soleCallType;
+    if (sole != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_controller.isInCall) _start(sole);
+      });
+    }
   }
 
   void _onState(CallState state) {
@@ -396,6 +433,27 @@ class _CallHomeState extends State<CallHome> {
 
   Widget _controls(CallState state) {
     if (!state.isActive) {
+      final sole = widget.config.soleCallType;
+      // One enabled call type → one full-width dial button (the chooser never appears; on first
+      // open the call auto-starts, so this is mostly the post-call redial affordance).
+      if (sole != null) {
+        final video = sole == CallType.video;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _start(sole),
+              style: FilledButton.styleFrom(
+                backgroundColor: video ? Colors.indigo.shade500 : Colors.green.shade600,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              icon: Icon(video ? Icons.videocam : Icons.call),
+              label: Text(video ? 'Video call' : 'Audio call'),
+            ),
+          ),
+        );
+      }
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Row(
@@ -444,24 +502,26 @@ class _CallHomeState extends State<CallHome> {
               label: 'Speaker',
               onTap: _toggleSpeaker,
             ),
-            _roundButton(
-              icon: _videoOn ? Icons.videocam : Icons.videocam_off,
-              active: _videoOn,
-              label: 'Video',
-              onTap: _toggleVideo,
-            ),
+            if (widget.config.videoEnabled)
+              _roundButton(
+                icon: _videoOn ? Icons.videocam : Icons.videocam_off,
+                active: _videoOn,
+                label: 'Video',
+                onTap: _toggleVideo,
+              ),
             _roundButton(
               icon: Icons.dialpad,
               active: false,
               label: 'Keypad',
               onTap: _showKeypad,
             ),
-            _roundButton(
-              icon: Icons.cameraswitch,
-              active: false,
-              label: 'Flip',
-              onTap: _videoOn ? _controller.switchCamera : null,
-            ),
+            if (widget.config.videoEnabled)
+              _roundButton(
+                icon: Icons.cameraswitch,
+                active: false,
+                label: 'Flip',
+                onTap: _videoOn ? _controller.switchCamera : null,
+              ),
           ],
         ),
         const SizedBox(height: 28),

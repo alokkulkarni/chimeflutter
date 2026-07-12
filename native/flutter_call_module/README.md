@@ -22,6 +22,20 @@ flutter pub get          # generates .ios/ and .android/ (the add-to-app glue)
 
 Run standalone for a quick check: `flutter run --dart-define=BACKEND_BASE_URL=https://…/v1`.
 
+## Configuration
+
+Embedded (add-to-app) runs read config from the host's `getConfig` bridge reply; standalone runs
+read the dart-defines. Bridge values win when both are present.
+
+| Bridge key / dart-define | Values | Behaviour |
+|--------------------------|--------|-----------|
+| `backendBaseUrl` / `BACKEND_BASE_URL` | `https://…/v1` | The deployed backend (`ApiBaseUrl` output of `sam deploy`). Missing → setup screen. |
+| `enabledCallTypes` / `ENABLED_CALL_TYPES` | `audio,video` (default) · `audio` · `video` | Both → the call screen shows the Audio/Video chooser. Exactly one → the chooser is skipped and that type **dials immediately** when the screen opens (after a hang-up a single redial button is shown instead — no auto-redial loop). Audio-only also hides the in-call Video/Flip buttons. Empty/unrecognised → both. |
+
+Hosts set these in `HostConfig`: iOS
+[`../ios-host/HostApp/AppDelegate.swift`](../ios-host/HostApp/AppDelegate.swift) · Android
+[`../android-host/.../HostApplication.kt`](../android-host/app/src/main/kotlin/com/chimeflutter/hostapp/HostApplication.kt).
+
 ## Entrypoints
 
 - `main()` — standalone run.

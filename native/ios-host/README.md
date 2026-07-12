@@ -39,8 +39,18 @@ open ChimeFlutterHost.xcworkspace                                 # use the work
 
 > Regenerate the project after editing `project.yml` with `brew install xcodegen && xcodegen generate`.
 
-Provide the backend URL and a JWT: set `BACKEND_BASE_URL` when building the Flutter module and return a
-real Cognito **ID token** from `AuthService.currentJwt()` (see [docs/DEPLOYMENT.md §2](../../docs/DEPLOYMENT.md)).
+### Runtime configuration (`HostConfig` in [`HostApp/AppDelegate.swift`](./HostApp/AppDelegate.swift))
+
+Both values are read from **scheme environment variables** (Product → Scheme → Edit Scheme… → Run →
+Arguments → Environment Variables) and handed to the Flutter module over the `getConfig` bridge:
+
+| Env var | Values | Behaviour |
+|---------|--------|-----------|
+| `BACKEND_BASE_URL` | the `ApiBaseUrl` output of `sam deploy` | Where calls are started. Missing → the module shows its setup screen. |
+| `ENABLED_CALL_TYPES` | `audio,video` (default) · `audio` · `video` | Both → the call screen shows the Audio/Video chooser. One → the chooser is skipped and that type dials immediately when the call screen opens. |
+
+Auth is bring-your-own: return your app's session token from `AuthService.currentJwt()` (empty =
+no `Authorization` header; see [docs/DEPLOYMENT.md §2](../../docs/DEPLOYMENT.md)).
 
 ## Entitlements & capabilities (already wired) — required for "like WhatsApp"
 

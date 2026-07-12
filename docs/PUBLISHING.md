@@ -197,6 +197,12 @@ learned the hard way:
   (`com.chimeflutter.host/bridge`): host implements `getConfig`, `getAuthToken`,
   `getCustomerContext`, `minimize`; module calls back `onCallStateChanged`, `onCallEnded`; host can
   drive `startCall` / `endCall` / `setMuted`.
+- **`getConfig` keys**: `backendBaseUrl` (required) and `enabledCallTypes` — `"audio,video"`
+  (default: the call screen shows an Audio/Video chooser) or `"audio"` / `"video"` (the chooser is
+  skipped and that type dials immediately when the screen opens; video-only controls are hidden on
+  audio-only). Set them in `HostConfig` (iOS `AppDelegate.swift` / Android `HostApplication.kt`);
+  standalone module runs use the equivalent dart-defines (`BACKEND_BASE_URL`,
+  `ENABLED_CALL_TYPES`). Unrecognised/empty values fall back to both.
 - **Android: consume the module as AARs** (`flutter build aar`), not source-include —
   source-mode `include_flutter` cannot feed the `flutter.*` extension to Kotlin-DSL plugins
   (e.g. `device_info_plus`), which breaks the build. Wire the two maven repos + 
