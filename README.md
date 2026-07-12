@@ -26,7 +26,7 @@ agent**. An in‑call **DTMF keypad** drives IVR menus via the Connect Participa
 | Path | Purpose |
 |------|---------|
 | [`specs/`](./specs) | Spec‑driven development artefacts: requirements, architecture, **API & channel contracts** (the single source of truth shared by every codebase), sequences, security, test strategy. |
-| [`backend/`](./backend) | AWS SAM app: API Gateway (HTTP API) + Lambdas — start/end call (`StartWebRTCContact`/`StopContact`), participant connection + **DTMF**, health. Least‑privilege IAM, attribute allow‑listing, bring‑your‑own auth. TypeScript, 79 Jest tests. |
+| [`backend/`](./backend) | The shared backend ([full reference](./docs/BACKEND.md)): API Gateway (HTTP API) + Lambdas — start/end call (`StartWebRTCContact`/`StopContact`), participant connection + **DTMF**, health. Least‑privilege IAM, attribute allow‑listing, bring‑your‑own auth. Deploys via **SAM or Docker** (identical handlers; role‑based AWS access in containers). TypeScript, 85 Jest tests. |
 | [`packages/flutter_amazon_connect_webrtc/`](./packages/flutter_amazon_connect_webrtc) | The **Flutter plugin**. Dart API + iOS (Swift/Chime SDK/CallKit) + Android (Kotlin/Chime SDK/Telecom) implementations. 34 Dart tests. |
 | [`packages/flutter_amazon_connect_webrtc/example/`](./packages/flutter_amazon_connect_webrtc/example) | A pure‑Flutter example app that exercises the plugin end‑to‑end. |
 | [`packages/react-native-amazon-connect-webrtc/`](./packages/react-native-amazon-connect-webrtc) | The **React Native library** — same backend, same contract, native managers ported verbatim from the device‑verified Flutter plugin. Prebuilt call screen, brownfield (existing‑native‑app) embedding, zero runtime npm deps, 26 Jest tests, `npm audit` clean. |
