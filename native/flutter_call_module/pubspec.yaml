@@ -1,0 +1,28 @@
+name: chime_call_module
+description: >-
+  Flutter add-to-app MODULE embedding flutter_amazon_connect_webrtc. This is what the native iOS
+  (CocoaPods) and Android (Gradle) host apps embed. The `flutter: module:` block below is what makes
+  `flutter pub get` generate the `.ios/` and `.android/` ephemeral projects the hosts reference.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_amazon_connect_webrtc:
+    path: ../../packages/flutter_amazon_connect_webrtc
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  module:
+    androidX: true
+    androidPackage: com.chimeflutter.callmodule
+    iosBundleIdentifier: com.chimeflutter.callmodule

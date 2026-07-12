@@ -1,0 +1,65 @@
+group 'com.chimeflutter.connect_webrtc'
+version '1.0.0'
+
+buildscript {
+    ext.kotlin_version = '1.9.24'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.3.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'com.chimeflutter.connect_webrtc'
+    compileSdk 34
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    defaultConfig {
+        // minSdk 26 (Android 8.0, NFR-5): androidx.core.telecom CallsManager is @RequiresApi(26);
+        // also satisfies Chime's getActiveAudioDevice (API 24+).
+        minSdk 26
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+        unitTests.includeAndroidResources = true
+    }
+}
+
+dependencies {
+    // Amazon Chime SDK for Android. NOTE the Maven group is `software.aws.chimesdk`
+    // (NOT `com.amazonaws`). This artifact bundles media + ML by default.
+    implementation 'software.aws.chimesdk:amazon-chime-sdk:0.25.4'
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    // Jetpack Telecom — the recommended self-managed VoIP integration (classic self-managed
+    // ConnectionService is deprecated in API 37). Manages system call UI + audio routing/focus.
+    implementation 'androidx.core:core-telecom:1.0.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito.kotlin:mockito-kotlin:5.2.1'
+    testImplementation 'org.robolectric:robolectric:4.11.1'
+}

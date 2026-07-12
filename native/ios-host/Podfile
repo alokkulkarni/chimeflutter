@@ -1,0 +1,29 @@
+# Podfile for the native iOS host embedding the ChimeFlutter module (add-to-app).
+# iOS 15 — the plugin podspec requires iOS 14+ (CallKit CXProviderConfiguration()); matches the host.
+platform :ios, '15.0'
+
+# The embedded Flutter add-to-app MODULE (native/flutter_call_module). Run `flutter pub get` in that
+# module first — it generates `.ios/Flutter/podhelper.rb` (referenced below). An app (not a module)
+# does NOT generate this file.
+flutter_application_path = '../flutter_call_module'
+load File.join(flutter_application_path, '.ios', 'Flutter', 'podhelper.rb')
+
+target 'HostApp' do
+  use_frameworks!
+  install_all_flutter_pods(flutter_application_path)
+end
+
+post_install do |installer|
+  flutter_post_install(installer) if defined?(flutter_post_install)
+
+  # permission_handler compiles each permission OUT unless its macro is set (its
+  # AudioVideoPermissionStrategy returns PermissionStatusDenied with no prompt otherwise).
+  # Enable exactly the permissions this app requests: microphone + camera.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_MICROPHONE=1'
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_CAMERA=1'
+    end
+  end
+end

@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">ChimeFlutter Support</string>
+    <string name="call_support">Call support</string>
+    <string name="account_title">Your account</string>
+    <string name="call_channel_name">Active call</string>
+    <string name="call_channel_desc">Ongoing support call</string>
+    <string name="call_in_progress">Support call in progress</string>
+    <string name="phone_account_label">ChimeFlutter Support</string>
+    <string name="return_to_call">📞 Call in progress — tap to return</string>
+</resources>

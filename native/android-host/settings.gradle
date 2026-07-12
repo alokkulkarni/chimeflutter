@@ -1,0 +1,8 @@
+// The Flutter module is consumed as AARs (Flutter's recommended add-to-app mode for hosts, and the
+// one that works with Kotlin-DSL plugins like device_info_plus — source-mode include_flutter cannot
+// feed them the `flutter.*` extension).
+//
+// Build the AARs first (they land in native/flutter_call_module/build/host/outputs/repo):
+//     (cd ../flutter_call_module && flutter build aar --no-profile)
+// The app module consumes them via the maven repos declared in build.gradle.
+include ':app'

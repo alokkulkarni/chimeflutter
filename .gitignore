@@ -47,3 +47,6 @@ aws-exports.js
 # Local tooling caches / session files (never commit)
 .claude/
 .firecrawl/
+
+# Local-only map of real environment IDs (placeholders live in the repo — never commit this)
+LOCAL_IDS.md
