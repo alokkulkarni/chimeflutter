@@ -1,0 +1,49 @@
+# Node / backend
+node_modules/
+dist/
+coverage/
+.aws-sam/
+*.tsbuildinfo
+samconfig.toml
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.pub-cache/
+.pub/
+**/doc/api/
+
+# iOS
+ios/Pods/
+**/Pods/
+*.xcworkspace/xcuserdata/
+**/DerivedData/
+*.pbxuser
+xcuserdata/
+
+# Android
+.gradle/
+local.properties
+*.iml
+.cxx/
+captures/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+aws-exports.js
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Local tooling caches / session files (never commit)
+.claude/
+.firecrawl/
