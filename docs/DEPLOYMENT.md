@@ -57,6 +57,12 @@ sam deploy --guided \
 
 Outputs: `ApiBaseUrl` (→ mobile `backendBaseUrl`) and `StartCallEndpoint`.
 
+> **Alternative: Docker.** The same handlers also run as a container with functional parity
+> (`backend/Dockerfile`), using **role-based AWS access** at runtime (ECS task role / EKS IRSA /
+> EC2 instance profile — no credentials in the image). Full runbook, IAM policy and ECS example:
+> [BACKEND.md §7](./BACKEND.md#7-deployment-b--docker-same-functionality-role-based-aws-access).
+> Remember the container has no API Gateway in front — add TLS + throttling at your edge.
+
 ### What gets created
 - HTTP API (stage `v1`) — **no authorizer** (bring your own, §2).
 - `StartCallFunction` (`POST /v1/calls`) — IAM allows only `connect:StartWebRTCContact` on the

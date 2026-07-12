@@ -3,6 +3,21 @@
 API Gateway (HTTP API) + Lambda that starts Amazon Connect WebRTC contacts for the mobile client,
 TypeScript, AWS SAM, Jest (TDD). Ships without an authorizer — bring your own auth (docs/PUBLISHING.md §B.6).
 
+> **Full reference: [docs/BACKEND.md](../docs/BACKEND.md)** — architecture, endpoints, config,
+> IAM, observability, and both deployment options.
+
+**Deploys two ways, same code, same behaviour:** serverless (SAM/Lambda, below) or as a **Docker
+container** (`Dockerfile` + `docker-compose.yml`) — the container hosts the identical Lambda
+handlers behind a dependency-free `node:http` adapter (`src/server/`) and resolves AWS credentials
+**role-based at runtime** (ECS task role / EKS IRSA / EC2 instance profile; no baked keys):
+
+```bash
+docker build -t chimeflutter-backend .
+docker run --rm -p 8080:8080 -e AWS_REGION=eu-west-2 \
+  -e CONNECT_INSTANCE_ID=<id> -e CONNECT_CONTACT_FLOW_ID=<id> chimeflutter-backend
+curl http://localhost:8080/v1/health
+```
+
 ## Layout
 
 ```

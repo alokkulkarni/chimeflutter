@@ -1,0 +1,31 @@
+# Local development runner for the containerised backend.
+#
+# CREDENTIALS — the container ships with NO AWS keys. The SDK's default provider chain resolves
+# them at runtime:
+#   • Production (ECS/EKS/EC2): use ROLE-BASED access — an ECS task role, EKS IRSA service-account
+#     role, or EC2 instance profile. Nothing to configure here; the SDK finds the role
+#     automatically. NEVER pass long-lived keys in production.
+#   • Local development (this file): either export AWS_PROFILE and mount ~/.aws read-only (below),
+#     or export short-lived AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN from
+#     `aws sts assume-role` / SSO into the shell before `docker compose up`.
+services:
+  backend:
+    build: .
+    ports:
+      - '8080:8080'
+    environment:
+      AWS_REGION: ${AWS_REGION:-eu-west-2}
+      CONNECT_INSTANCE_ID: ${CONNECT_INSTANCE_ID:?set CONNECT_INSTANCE_ID (see LOCAL_IDS.md)}
+      CONNECT_CONTACT_FLOW_ID: ${CONNECT_CONTACT_FLOW_ID:?set CONNECT_CONTACT_FLOW_ID}
+      ALLOWED_CLIENT_ATTRIBUTE_KEYS: ${ALLOWED_CLIENT_ATTRIBUTE_KEYS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Local-dev credential passthrough (all optional; unused when a role provides credentials):
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      # Local dev only — lets AWS_PROFILE resolve from your shared config. Remove in any
+      # production compose file; roles make it unnecessary.
+      - ~/.aws:/home/node/.aws:ro
+    restart: unless-stopped

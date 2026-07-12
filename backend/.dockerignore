@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.aws-sam
+tests
+*.md
+.env*
+samconfig.toml
+template.yaml
+docker-compose.yml
+Dockerfile
+.dockerignore
