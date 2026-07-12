@@ -30,7 +30,7 @@ customer to the **right queue / agent**.
 | [`packages/flutter_amazon_connect_webrtc/example/`](./packages/flutter_amazon_connect_webrtc/example) | A pure‑Flutter example app that exercises the plugin end‑to‑end. |
 | [`native/ios-host/`](./native/ios-host) | A **native SwiftUI** iOS app (XcodeGen + CocoaPods) embedding the library `add‑to‑app`, with **CallKit** so the OS shows a real call. |
 | [`native/android-host/`](./native/android-host) | A **native Kotlin** Android app (Gradle) embedding the library `add‑to‑app`, with **Telecom** so the OS shows a real call. |
-| [`docs/`](./docs) | Integration guide, deployment runbook, **publishing guide** ([PUBLISHING.md](./docs/PUBLISHING.md)), sequence diagrams. |
+| [`docs/`](./docs) | **[Getting-started guide](./docs/GETTING_STARTED.md)** (novice-friendly, end-to-end), integration guide, deployment runbook, **publishing guide** ([PUBLISHING.md](./docs/PUBLISHING.md)), sequence diagrams. |
 
 ## Design principles
 
@@ -47,7 +47,10 @@ customer to the **right queue / agent**.
 
 ## Quick start
 
-See [`docs/INTEGRATION.md`](./docs/INTEGRATION.md) for the full walk‑through. In short:
+**New to this repo? Start with [`docs/GETTING_STARTED.md`](./docs/GETTING_STARTED.md)** — a
+detailed, novice-friendly walk-through from AWS setup to your first call, covering every native
+file and config on both platforms. [`docs/INTEGRATION.md`](./docs/INTEGRATION.md) is the shorter
+concept guide. In short:
 
 ```bash
 # 1. Backend

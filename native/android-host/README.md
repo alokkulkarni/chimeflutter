@@ -44,6 +44,16 @@ The Flutter module is consumed as **AARs** (Flutter's recommended host integrati
 
 `app/build.gradle` sets `implementation project(':flutter')`, `minSdk 26`, `compileSdk 35`, Java 17.
 
+## Runtime configuration (`HostConfig` in [`HostApplication.kt`](./app/src/main/kotlin/com/chimeflutter/hostapp/HostApplication.kt))
+
+Handed to the Flutter module over the `getConfig` bridge (edit the Kotlin fallbacks, or set env vars
+when launching from a shell/CI):
+
+| Value | Values | Behaviour |
+|-------|--------|-----------|
+| `backendBaseUrl` | the `ApiBaseUrl` output of `sam deploy` | Where calls are started. Missing → the module shows its setup screen. |
+| `enabledCallTypes` | `audio,video` (default) · `audio` · `video` | Both → the call screen shows the Audio/Video chooser. One → the chooser is skipped and that type dials immediately when the call screen opens. |
+
 ## Permissions (already wired) — required for "like WhatsApp"
 
 Declared in [`app/src/main/AndroidManifest.xml`](./app/src/main/AndroidManifest.xml); `MainActivity`

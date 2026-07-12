@@ -11,6 +11,14 @@ enum HostConfig {
     static let backendBaseUrl =
         ProcessInfo.processInfo.environment["BACKEND_BASE_URL"]
             ?? ""
+
+    /// Which call types the in-app support UI offers: "audio,video" (default — the user picks on
+    /// the audio/video chooser), "audio" or "video" (the chooser is skipped and that type dials
+    /// immediately when the call screen opens). An ENABLED_CALL_TYPES environment variable in the
+    /// Xcode scheme overrides it if set.
+    static let enabledCallTypes =
+        ProcessInfo.processInfo.environment["ENABLED_CALL_TYPES"]
+            ?? "audio,video"
 }
 
 /// Native iOS host that embeds the ChimeFlutter module via add-to-app.
@@ -59,7 +67,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         channel.setMethodCallHandler { call, result in
             switch call.method {
             case "getConfig":
-                result(["backendBaseUrl": HostConfig.backendBaseUrl])
+                result([
+                    "backendBaseUrl": HostConfig.backendBaseUrl,
+                    "enabledCallTypes": HostConfig.enabledCallTypes,
+                ])
             case "getAuthToken":
                 // Return YOUR app's session/bearer token here if you front the backend API with
                 // auth. Empty string = no Authorization header.
