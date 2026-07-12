@@ -28,9 +28,10 @@ customer to the **right queue / agent**.
 | [`backend/`](./backend) | AWS SAM app: API Gateway (HTTP API) + Lambda that calls `connect:StartWebRTCContact` (bring‑your‑own auth). TypeScript, Jest, TDD. |
 | [`packages/flutter_amazon_connect_webrtc/`](./packages/flutter_amazon_connect_webrtc) | The reusable **Flutter plugin**. Dart API + iOS (Swift/Chime SDK) + Android (Kotlin/Chime SDK) platform implementations. Unit‑tested. |
 | [`packages/flutter_amazon_connect_webrtc/example/`](./packages/flutter_amazon_connect_webrtc/example) | A pure‑Flutter example app that exercises the plugin end‑to‑end. |
+| [`packages/react-native-amazon-connect-webrtc/`](./packages/react-native-amazon-connect-webrtc) | The **React Native** sibling library — same backend, same native Chime SDK managers (ported verbatim), CallKit/Telecom, video tiles, DTMF. Zero runtime npm deps; TypeScript strict; unit‑tested; `npm audit` clean. |
 | [`native/ios-host/`](./native/ios-host) | A **native SwiftUI** iOS app (XcodeGen + CocoaPods) embedding the library `add‑to‑app`, with **CallKit** so the OS shows a real call. |
 | [`native/android-host/`](./native/android-host) | A **native Kotlin** Android app (Gradle) embedding the library `add‑to‑app`, with **Telecom** so the OS shows a real call. |
-| [`docs/`](./docs) | **[Getting-started guide](./docs/GETTING_STARTED.md)** (novice-friendly, end-to-end), integration guide, deployment runbook, **publishing guide** ([PUBLISHING.md](./docs/PUBLISHING.md)), sequence diagrams. |
+| [`docs/`](./docs) | **[Getting-started guide](./docs/GETTING_STARTED.md)** (novice-friendly, end-to-end), integration guide, deployment runbook, **publishing guide** ([PUBLISHING.md](./docs/PUBLISHING.md)), sequence diagrams. React Native docs: [getting started](./docs/react-native/GETTING_STARTED.md) · [integration](./docs/react-native/INTEGRATION.md) · [publishing](./docs/react-native/PUBLISHING.md). |
 
 ## Design principles
 
