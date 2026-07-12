@@ -1,0 +1,57 @@
+// React Native library module. Inside an RN app (>= 0.71) the React Native Gradle Plugin supplies
+// the AGP/Kotlin toolchain and pins the com.facebook.react:react-android version — the buildscript
+// block below only applies when this module is built standalone.
+buildscript {
+    if (project == rootProject) {
+        repositories {
+            google()
+            mavenCentral()
+        }
+        dependencies {
+            classpath 'com.android.tools.build:gradle:8.6.0'
+            classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24'
+        }
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'com.amazonconnectwebrtc'
+    compileSdk 35
+
+    defaultConfig {
+        // minSdk 26: androidx.core.telecom CallsManager is @RequiresApi(26); also satisfies the
+        // Chime SDK's getActiveAudioDevice (API 24+). Parity with the Flutter plugin.
+        minSdk 26
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    // Version pinned by the consumer app's React Native Gradle Plugin (RN >= 0.71).
+    implementation 'com.facebook.react:react-android'
+
+    // Amazon Chime SDK for Android. NOTE the Maven group is `software.aws.chimesdk`
+    // (NOT `com.amazonaws`). This artifact bundles the media binaries.
+    implementation 'software.aws.chimesdk:amazon-chime-sdk:0.25.4'
+
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    // Jetpack Telecom — the recommended self-managed VoIP integration (classic self-managed
+    // ConnectionService is deprecated in API 37). Manages system call UI + audio routing/focus.
+    implementation 'androidx.core:core-telecom:1.0.0'
+}
