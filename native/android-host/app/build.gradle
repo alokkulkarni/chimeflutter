@@ -1,0 +1,48 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'com.chimeflutter.hostapp'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.chimeflutter.hostapp'
+        // minSdk 26: self-managed Telecom (API 23+), NotificationCompat.CallStyle, and the Chime SDK
+        // (getActiveAudioDevice needs API 24) all satisfied.
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+}
+
+dependencies {
+    // The Flutter add-to-app module as AARs (call UI + flutter_amazon_connect_webrtc plugin).
+    // Build them first:  cd ../flutter_call_module && flutter build aar --no-profile
+    debugImplementation 'com.chimeflutter.callmodule:flutter_debug:1.0'
+    releaseImplementation 'com.chimeflutter.callmodule:flutter_release:1.0'
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+
+    // Jetpack Telecom (modern self-managed calling). Classic android.telecom is also used directly.
+    implementation 'androidx.core:core-telecom:1.0.0'
+}

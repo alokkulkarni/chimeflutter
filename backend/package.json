@@ -1,0 +1,33 @@
+{
+  "name": "chimeflutter-backend",
+  "version": "1.0.0",
+  "description": "API Gateway + Lambda backend that starts Amazon Connect WebRTC contacts for the ChimeFlutter mobile library.",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-connect": "^3.703.0",
+    "@aws-sdk/client-connectparticipant": "^3.1085.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.146",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.1",
+    "aws-sdk-client-mock": "^4.1.0",
+    "aws-sdk-client-mock-jest": "^4.1.0",
+    "esbuild": "^0.24.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  }
+}

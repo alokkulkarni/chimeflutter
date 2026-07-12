@@ -1,0 +1,27 @@
+// Root Gradle build for the ChimeFlutter native Android host app.
+buildscript {
+    ext.kotlin_version = '2.3.21'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        // The Flutter module AARs (build them with: cd ../flutter_call_module && flutter build aar).
+        maven { url "${rootProject.projectDir}/../flutter_call_module/build/host/outputs/repo" }
+        // Flutter engine artifacts the module AAR poms reference.
+        maven { url 'https://storage.googleapis.com/download.flutter.io' }
+    }
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
+}

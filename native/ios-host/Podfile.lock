@@ -1,0 +1,47 @@
+PODS:
+  - AmazonChimeSDK (0.27.3):
+    - AmazonChimeSDKMedia (= 0.25.3)
+  - AmazonChimeSDKMedia (0.25.3)
+  - Flutter (1.0.0)
+  - flutter_amazon_connect_webrtc (1.0.0):
+    - AmazonChimeSDK (~> 0.27.0)
+    - Flutter
+  - FlutterPluginRegistrant (0.0.1):
+    - Flutter
+    - flutter_amazon_connect_webrtc
+    - permission_handler_apple
+  - permission_handler_apple (9.4.8):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `../flutter_call_module/.ios/Flutter`)
+  - flutter_amazon_connect_webrtc (from `../flutter_call_module/.ios/.symlinks/plugins/flutter_amazon_connect_webrtc/ios`)
+  - FlutterPluginRegistrant (from `../flutter_call_module/.ios/Flutter/FlutterPluginRegistrant`)
+  - permission_handler_apple (from `../flutter_call_module/.ios/.symlinks/plugins/permission_handler_apple/ios`)
+
+SPEC REPOS:
+  trunk:
+    - AmazonChimeSDK
+    - AmazonChimeSDKMedia
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: "../flutter_call_module/.ios/Flutter"
+  flutter_amazon_connect_webrtc:
+    :path: "../flutter_call_module/.ios/.symlinks/plugins/flutter_amazon_connect_webrtc/ios"
+  FlutterPluginRegistrant:
+    :path: "../flutter_call_module/.ios/Flutter/FlutterPluginRegistrant"
+  permission_handler_apple:
+    :path: "../flutter_call_module/.ios/.symlinks/plugins/permission_handler_apple/ios"
+
+SPEC CHECKSUMS:
+  AmazonChimeSDK: 6a69795b744298e622441a11f62bd24cc79529e0
+  AmazonChimeSDKMedia: dd7aa82e32a8f221533bc1fe3700d6123f493a01
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_amazon_connect_webrtc: b030fce44132c59c0c416d1baf61bdc2fbd73a97
+  FlutterPluginRegistrant: 08755501511c56360ff0e8877f50e192579f67a0
+  permission_handler_apple: 92d754bbaa7361d436db2d6c3c1c2a0fdcec462e
+
+PODFILE CHECKSUM: a95bdcc729e6618600ca47cee98315884d233b16
+
+COCOAPODS: 1.17.0

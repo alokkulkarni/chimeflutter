@@ -1,0 +1,4 @@
+<resources>
+    <string name="call_channel_name">Active call</string>
+    <string name="call_in_progress">Support call in progress</string>
+</resources>

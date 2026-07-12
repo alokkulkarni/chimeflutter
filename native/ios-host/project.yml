@@ -1,0 +1,32 @@
+# XcodeGen project definition — run `xcodegen generate` to produce ChimeFlutterHost.xcodeproj.
+# Avoids hand-maintaining project.pbxproj.
+name: ChimeFlutterHost
+options:
+  bundleIdPrefix: com.chimeflutter
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+targets:
+  HostApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: HostApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chimeflutter.hostapp
+        INFOPLIST_FILE: HostApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: HostApp/HostApp.entitlements
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_BITCODE: "NO"
+        # REQUIRED for Flutter add-to-app on Xcode 15+: the Flutter build script reads/writes files
+        # outside the sandbox, so script sandboxing must be off or "[CP-User] Run Flutter Build"
+        # fails with PhaseScriptExecution errors.
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    # The Flutter module + Chime SDK are provided via CocoaPods (see Podfile); after
+    # `xcodegen generate` run `pod install` and open ChimeFlutterHost.xcworkspace.

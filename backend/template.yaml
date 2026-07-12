@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ChimeFlutter backend — API Gateway (HTTP API) + Lambda that starts Amazon Connect WebRTC contacts
+  for the mobile Chime SDK client, protected by a JWT Lambda authorizer. Least-privilege: the call
+  functions may only StartWebRTCContact / StopContact on a single Connect instance.
+
+Parameters:
+  ConnectInstanceId:
+    Type: String
+    Description: Amazon Connect instance ID the backend calls StartWebRTCContact on.
+  ConnectContactFlowId:
+    Type: String
+    Description: >
+      A published inbound (standard) contact flow ID that reads the injected contact attributes
+      ($.Attributes.issueType, .tier, etc.) and routes to the right queue. No special WebRTC flow
+      type exists — a standard flow is used, and video is a per-contact API capability.
+  AllowedClientAttributeKeys:
+    Type: String
+    Default: issueType,issueSubType,productId,tier,segment,language,preferredAgentId,lastScreen,campaignId
+    Description: Comma-separated allow-list of client-supplied context keys permitted to reach Connect.
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    MemorySize: 512
+    Timeout: 15
+    Tracing: Active
+    Environment:
+      Variables:
+        NODE_OPTIONS: --enable-source-maps
+        LOG_LEVEL: !Ref LogLevel
+        CONNECT_INSTANCE_ID: !Ref ConnectInstanceId
+        CONNECT_CONTACT_FLOW_ID: !Ref ConnectContactFlowId
+        ALLOWED_CLIENT_ATTRIBUTE_KEYS: !Ref AllowedClientAttributeKeys
+
+Resources:
+  # NOTE: this API has NO built-in authorizer. Before production, front it with YOUR auth:
+  # re-attach an HTTP API authorizer (JWT/Lambda) for your IdP, or an API key / WAF at the edge.
+  # The mobile library sends `Authorization: Bearer <tokenProvider()>` whenever a token is provided,
+  # so a JWT authorizer can be re-enabled without any client change.
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: v1
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: >-
+          {"requestId":"$context.requestId","ip":"$context.identity.sourceIp","method":"$context.httpMethod","path":"$context.path","status":"$context.status","latency":"$context.responseLatency","authError":"$context.authorizer.error"}
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+
+  StartCallFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/startCall.ts
+    Properties:
+      Handler: startCall.handler
+      Description: POST /v1/calls — starts a Connect WebRTC contact and returns join credentials.
+      Policies:
+        - Statement:
+            - Sid: ConnectStartWebRtcContact
+              Effect: Allow
+              Action:
+                - connect:StartWebRTCContact
+              Resource:
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/contact/*
+                # Connect authorizes StartWebRTCContact against the contact-flow resource too
+                # (verified empirically from the AccessDeniedException).
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/contact-flow/*
+      Events:
+        StartCall:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /calls
+
+  EndCallFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/endCall.ts
+    Properties:
+      Handler: endCall.handler
+      Description: DELETE /v1/calls/{contactId} — stops an in-progress WebRTC contact.
+      Policies:
+        - Statement:
+            - Sid: ConnectStopContact
+              Effect: Allow
+              Action:
+                - connect:StopContact
+              Resource:
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/contact/*
+      Events:
+        EndCall:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: DELETE
+            Path: /calls/{contactId}
+
+  ParticipantFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/participant.ts
+    Properties:
+      Handler: participant.handler
+      Description: >-
+        DTMF for the in-call IVR keypad — POST /v1/calls/connections exchanges the ParticipantToken
+        for connection credentials; POST /v1/calls/dtmf sends audio/dtmf messages. The Participant
+        Service is authorised by the tokens themselves (no extra IAM resources).
+      Events:
+        CreateConnection:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /calls/connections
+        SendDtmf:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /calls/dtmf
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/lambda/health.ts
+    Properties:
+      Handler: health.handler
+      Description: Public health check for smoke tests.
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /health
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL the mobile app configures as backendBaseUrl.
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
+  StartCallEndpoint:
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1/calls

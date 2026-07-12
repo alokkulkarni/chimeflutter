@@ -1,0 +1,132 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "setRoutingAttributes",
+  "Metadata": {
+    "EntryPointPosition": { "x": 20, "y": 20 },
+    "ActionMetadata": {
+      "setRoutingAttributes": { "Position": { "x": 180, "y": 20 } },
+      "checkTier": { "Position": { "x": 420, "y": 20 } },
+      "checkIssueType": { "Position": { "x": 680, "y": 160 } },
+      "setQueuePriority": { "Position": { "x": 940, "y": 20 } },
+      "setQueueBilling": { "Position": { "x": 940, "y": 160 } },
+      "setQueueTechnical": { "Position": { "x": 940, "y": 300 } },
+      "setQueueGeneral": { "Position": { "x": 940, "y": 440 } },
+      "transferToQueue": { "Position": { "x": 1200, "y": 160 } },
+      "disconnect": { "Position": { "x": 1460, "y": 160 } }
+    }
+  },
+  "Actions": [
+    {
+      "Identifier": "setRoutingAttributes",
+      "Type": "UpdateContactAttributes",
+      "Parameters": {
+        "Attributes": { "callHandledBy": "chimeflutter-flow" },
+        "TargetNamespace": "User"
+      },
+      "Transitions": {
+        "NextAction": "checkTier",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "checkTier" }
+        ]
+      }
+    },
+    {
+      "Identifier": "checkTier",
+      "Type": "Compare",
+      "Parameters": { "ComparisonValue": "$.Attributes.tier" },
+      "Transitions": {
+        "Conditions": [
+          {
+            "NextAction": "setQueuePriority",
+            "Condition": { "Operator": "Equals", "Operands": ["gold"] }
+          }
+        ],
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "checkIssueType" }
+        ]
+      }
+    },
+    {
+      "Identifier": "checkIssueType",
+      "Type": "Compare",
+      "Parameters": { "ComparisonValue": "$.Attributes.issueType" },
+      "Transitions": {
+        "Conditions": [
+          {
+            "NextAction": "setQueueBilling",
+            "Condition": { "Operator": "Equals", "Operands": ["billing"] }
+          },
+          {
+            "NextAction": "setQueueTechnical",
+            "Condition": { "Operator": "Equals", "Operands": ["tech"] }
+          }
+        ],
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "setQueueGeneral" }
+        ]
+      }
+    },
+    {
+      "Identifier": "setQueuePriority",
+      "Type": "SetWorkingQueue",
+      "Parameters": { "QueueId": "${QUEUE_ARN_Priority}" },
+      "Transitions": {
+        "NextAction": "transferToQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "setQueueGeneral" }
+        ]
+      }
+    },
+    {
+      "Identifier": "setQueueBilling",
+      "Type": "SetWorkingQueue",
+      "Parameters": { "QueueId": "${QUEUE_ARN_Billing}" },
+      "Transitions": {
+        "NextAction": "transferToQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "setQueueGeneral" }
+        ]
+      }
+    },
+    {
+      "Identifier": "setQueueTechnical",
+      "Type": "SetWorkingQueue",
+      "Parameters": { "QueueId": "${QUEUE_ARN_Technical}" },
+      "Transitions": {
+        "NextAction": "transferToQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "setQueueGeneral" }
+        ]
+      }
+    },
+    {
+      "Identifier": "setQueueGeneral",
+      "Type": "SetWorkingQueue",
+      "Parameters": { "QueueId": "${QUEUE_ARN_General}" },
+      "Transitions": {
+        "NextAction": "transferToQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "disconnect" }
+        ]
+      }
+    },
+    {
+      "Identifier": "transferToQueue",
+      "Type": "TransferContactToQueue",
+      "Parameters": {},
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [
+          { "ErrorType": "QueueAtCapacity", "NextAction": "disconnect" },
+          { "ErrorType": "NoMatchingError", "NextAction": "disconnect" }
+        ]
+      }
+    },
+    {
+      "Identifier": "disconnect",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}
