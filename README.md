@@ -33,7 +33,7 @@ agent**. An in‑call **DTMF keypad** drives IVR menus via the Connect Participa
 | [`native/flutter_call_module/`](./native/flutter_call_module) | The Flutter **add‑to‑app module**: complete call UI (chooser or auto‑dial via `enabledCallTypes`, DTMF keypad, video tiles) + the host platform‑channel bridge. |
 | [`native/ios-host/`](./native/ios-host) | A **native SwiftUI** iOS app embedding the Flutter module add‑to‑app, with CallKit, green return‑to‑call bar, sheet‑minimize. |
 | [`native/android-host/`](./native/android-host) | A **native Kotlin** Android app embedding the module as **AARs**, with Telecom, return‑to‑call banner, back‑gesture minimize. |
-| [`docs/`](./docs) | Guides. Flutter: [getting started](./docs/GETTING_STARTED.md) · [integration](./docs/INTEGRATION.md) · [publishing](./docs/PUBLISHING.md). React Native: [getting started](./docs/react-native/GETTING_STARTED.md) · [integration](./docs/react-native/INTEGRATION.md) · [publishing](./docs/react-native/PUBLISHING.md). Plus the [deployment runbook](./docs/DEPLOYMENT.md), [system call UI](./docs/SYSTEM_CALL_UI.md) and an importable [Connect flow](./docs/connect). |
+| [`docs/`](./docs) | Guides. Flutter: [getting started](./docs/GETTING_STARTED.md) · [integration](./docs/INTEGRATION.md) · [publishing](./docs/PUBLISHING.md). React Native: [getting started](./docs/react-native/GETTING_STARTED.md) · [integration](./docs/react-native/INTEGRATION.md) · [publishing](./docs/react-native/PUBLISHING.md). Plus the **[backend reference](./docs/BACKEND.md)** (architecture, endpoints, IAM, SAM & Docker runbooks), the [deployment runbook](./docs/DEPLOYMENT.md), [system call UI](./docs/SYSTEM_CALL_UI.md) and an importable [Connect flow](./docs/connect). |
 
 ## Design principles
 
@@ -63,9 +63,13 @@ app config → first call), and cover embedding in an existing native app:
 In short:
 
 ```bash
-# 1. Backend (shared by both libraries)
-cd backend && npm ci && npm test                # 79 tests
+# 1. Backend (shared by both libraries) — serverless…
+cd backend && npm ci && npm test                # 85 tests
 sam build && sam deploy --guided                 # → note the ApiBaseUrl output
+#    …or the same handlers as a Docker container (role-based AWS creds — docs/BACKEND.md §7):
+docker build -t chimeflutter-backend . && docker run -p 8080:8080 \
+  -e AWS_REGION=<region> -e CONNECT_INSTANCE_ID=<id> -e CONNECT_CONTACT_FLOW_ID=<id> \
+  chimeflutter-backend
 
 # 2a. Flutter
 cd packages/flutter_amazon_connect_webrtc && flutter test
@@ -84,8 +88,10 @@ cd packages/react-native-amazon-connect-webrtc && npm ci && npm test && npm audi
 The Flutter path is **verified end‑to‑end on physical devices**: real VoIP calls placed from an
 iPhone into Amazon Connect (CallKit call UI, queue routing by attributes, DTMF into an IVR,
 speaker routing, minimize‑and‑browse), with the Android host building and consuming the same
-feature set. The backend is deployed and live‑tested (79 Jest tests + smoke tests against the real
-Connect instance). The React Native library shares the same contract and verbatim‑ported native
+feature set. The backend is deployed and live‑tested (85 Jest tests + smoke tests against the real
+Connect instance), and its **Docker deployment is verified** too — the container hosts the
+identical Lambda handlers (image built and smoke‑tested locally; role‑based AWS credentials at
+runtime, see [docs/BACKEND.md](./docs/BACKEND.md)). The React Native library shares the same contract and verbatim‑ported native
 managers, with a fully tested TypeScript core (26 tests, `npm audit` 0 vulnerabilities); compiling
 its native modules requires embedding in an RN host app — the release checklist in
 [docs/react-native/PUBLISHING.md](./docs/react-native/PUBLISHING.md) gates on that device smoke
