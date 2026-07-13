@@ -1,5 +1,30 @@
-/** Minimal react-native surface so the pure-TS core can be imported under Jest. Tests inject fake
- *  bridges/transports; nothing here is exercised beyond module resolution. */
+/** Minimal react-native surface for Jest. Components render as plain host elements so
+ *  react-test-renderer can traverse the tree (used by the accessibility test suite); the native
+ *  module/emitter stubs satisfy module resolution for the pure-TS core tests. */
+import React from 'react';
+
+function host<P extends object>(name: string) {
+  const Component = (props: P) => React.createElement(name, props as Record<string, unknown>);
+  (Component as { displayName?: string }).displayName = name;
+  return Component;
+}
+
+export const View = host('View');
+export const Text = host('Text');
+export const Pressable = host('Pressable');
+export const Modal = host('Modal');
+
+export const StyleSheet = {
+  create: <T,>(styles: T): T => styles,
+  absoluteFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  absoluteFillObject: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  flatten: (style: unknown) => style,
+};
+
+export const AccessibilityInfo = {
+  announceForAccessibility: jest.fn(),
+};
+
 export const NativeModules: Record<string, unknown> = {
   ConnectWebrtc: {
     addListener: () => undefined,
@@ -24,8 +49,8 @@ export const PermissionsAndroid = {
   requestMultiple: async () => ({}),
 };
 
-export function requireNativeComponent<T>(_name: string): T {
-  return ((..._args: unknown[]) => null) as unknown as T;
+export function requireNativeComponent<T>(name: string): T {
+  return host(name) as unknown as T;
 }
 
 export type ViewProps = Record<string, unknown>;

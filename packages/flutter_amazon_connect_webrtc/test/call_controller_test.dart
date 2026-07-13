@@ -229,7 +229,7 @@ void main() {
       when(() => backend.createParticipantConnection(any())).thenAnswer((_) async => 'conn-1');
       when(() => backend.sendDtmf(
           connectionToken: any(named: 'connectionToken'),
-          digits: any(named: 'digits'))).thenAnswer((_) async {});
+          digits: any(named: 'digits'),),).thenAnswer((_) async {});
       final controller = build();
       await controller.startCall(_request());
 
@@ -239,10 +239,10 @@ void main() {
       verify(() => backend.createParticipantConnection('pt-1')).called(1); // lazy + cached
       verify(() => backend.sendDtmf(
           connectionToken: any(named: 'connectionToken', that: equals('conn-1')),
-          digits: any(named: 'digits', that: equals('1')))).called(1);
+          digits: any(named: 'digits', that: equals('1')),),).called(1);
       verify(() => backend.sendDtmf(
           connectionToken: any(named: 'connectionToken', that: equals('conn-1')),
-          digits: any(named: 'digits', that: equals('2')))).called(1);
+          digits: any(named: 'digits', that: equals('2')),),).called(1);
     });
 
     test('recreates the connection once when a send fails (expired token)', () async {
@@ -253,7 +253,7 @@ void main() {
       var sends = 0;
       when(() => backend.sendDtmf(
           connectionToken: any(named: 'connectionToken'),
-          digits: any(named: 'digits'))).thenAnswer((_) async {
+          digits: any(named: 'digits'),),).thenAnswer((_) async {
         if (++sends == 1) throw const BackendException('expired');
       });
       final controller = build();
