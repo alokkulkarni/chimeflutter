@@ -50,3 +50,6 @@ aws-exports.js
 
 # Local-only map of real environment IDs (placeholders live in the repo — never commit this)
 LOCAL_IDS.md
+
+# Draft blog content (kept local, not part of the published repo)
+docs/blog/

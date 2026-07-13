@@ -13,10 +13,27 @@ export interface ConnectVideoViewProps extends ViewProps {
   tileId: number;
   /** Mirror the image (use for the local self-view). */
   mirror?: boolean;
+  /** Announced by VoiceOver/TalkBack for the video surface — e.g. "Agent video" for the remote
+   *  tile or "Your camera preview" for the local one. */
+  accessibilityLabel?: string;
 }
 
 /** Renders one Chime video tile in the native `DefaultVideoRenderView` (no pixel copies through
  *  JS — the video never leaves the native layer). */
-export function ConnectVideoView({ tileId, mirror = false, ...rest }: ConnectVideoViewProps) {
-  return <NativeConnectVideoView tileId={tileId} mirror={mirror} {...rest} />;
+export function ConnectVideoView({
+  tileId,
+  mirror = false,
+  accessibilityLabel = 'Call video',
+  ...rest
+}: ConnectVideoViewProps) {
+  return (
+    <NativeConnectVideoView
+      tileId={tileId}
+      mirror={mirror}
+      accessible
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="image"
+      {...rest}
+    />
+  );
 }

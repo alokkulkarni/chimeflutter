@@ -185,7 +185,7 @@ class SetupScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Current value: "${config.backendBaseUrl.isEmpty ? '(empty)' : config.backendBaseUrl}"',
-              style: const TextStyle(color: Colors.white54),
+              style: const TextStyle(color: Colors.white70),
             ),
           ],
         ),
@@ -196,8 +196,11 @@ class SetupScreen extends StatelessWidget {
 
 /// The call surface: WhatsApp-style dark call screen with avatar, state, duration and controls.
 class CallHome extends StatefulWidget {
-  const CallHome({super.key, required this.config});
+  const CallHome({super.key, required this.config, this.controllerOverride});
   final AppConfig config;
+
+  /// Test seam — widget/accessibility tests inject a controller wired to fakes.
+  final ConnectWebRtcController? controllerOverride;
 
   @override
   State<CallHome> createState() => _CallHomeState();
@@ -217,14 +220,15 @@ class _CallHomeState extends State<CallHome> {
   @override
   void initState() {
     super.initState();
-    _controller = ConnectWebRtcController(
-      config: ConnectWebRtcConfig(
-        backendBaseUrl: Uri.parse(widget.config.backendBaseUrl),
-        callKitEnabled: true, // report to CallKit (iOS) / Telecom (Android)
-        callDisplayName: 'Support',
-      ),
-      tokenProvider: tokenProvider,
-    );
+    _controller = widget.controllerOverride ??
+        ConnectWebRtcController(
+          config: ConnectWebRtcConfig(
+            backendBaseUrl: Uri.parse(widget.config.backendBaseUrl),
+            callKitEnabled: true, // report to CallKit (iOS) / Telecom (Android)
+            callDisplayName: 'Support',
+          ),
+          tokenProvider: tokenProvider,
+        );
     HostBridge(_controller); // wire native ⇄ Flutter (kept alive by its handler + subscription)
     _controller.states.listen(_onState);
     _controller.events.listen(_onEvent);
@@ -327,7 +331,9 @@ class _CallHomeState extends State<CallHome> {
                 children: [
                   // Remote video fills the screen on a video call.
                   if (_remoteTile != null)
-                    Positioned.fill(child: ConnectVideoView(tileId: _remoteTile!)),
+                    Positioned.fill(
+                      child: ConnectVideoView(tileId: _remoteTile!, semanticsLabel: 'Agent video'),
+                    ),
                   // Local preview, picture-in-picture.
                   if (_localTile != null)
                     Positioned(
@@ -337,7 +343,11 @@ class _CallHomeState extends State<CallHome> {
                       height: 156,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: ConnectVideoView(tileId: _localTile!, mirror: true),
+                        child: ConnectVideoView(
+                          tileId: _localTile!,
+                          mirror: true,
+                          semanticsLabel: 'Your camera preview',
+                        ),
                       ),
                     ),
                   // Minimizing uses the platform-native gesture (no custom button): iOS — swipe the
@@ -353,10 +363,14 @@ class _CallHomeState extends State<CallHome> {
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          child: Text(
-                            _error!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.redAccent),
+                          // liveRegion: screen readers announce errors as they appear.
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              _error!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
                           ),
                         ),
                       _controls(state),
@@ -380,12 +394,16 @@ class _CallHomeState extends State<CallHome> {
           style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: Text(
-            _statusLine(state),
-            key: ValueKey<String>('${state.name}$_elapsed'),
-            style: const TextStyle(color: Colors.white60, fontSize: 15),
+        // liveRegion: VoiceOver/TalkBack announce call-state changes (Connecting…, Connected…).
+        Semantics(
+          liveRegion: true,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Text(
+              _statusLine(state),
+              key: ValueKey<String>('${state.name}$_elapsed'),
+              style: const TextStyle(color: Colors.white70, fontSize: 15),
+            ),
           ),
         ),
       ],
@@ -394,23 +412,26 @@ class _CallHomeState extends State<CallHome> {
 
   Widget _avatar(CallState state) {
     final pulsing = state == CallState.connecting || state == CallState.ringing;
-    return Column(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 600),
-          width: 132,
-          height: 132,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF2A2C4E),
-            border: Border.all(
-              color: pulsing ? Colors.indigoAccent : Colors.white12,
-              width: pulsing ? 3 : 1,
+    // Decorative — the header already conveys who the call is with and its state.
+    return ExcludeSemantics(
+      child: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            width: 132,
+            height: 132,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF2A2C4E),
+              border: Border.all(
+                color: pulsing ? Colors.indigoAccent : Colors.white12,
+                width: pulsing ? 3 : 1,
+              ),
             ),
+            child: const Icon(Icons.support_agent, size: 64, color: Colors.white70),
           ),
-          child: const Icon(Icons.support_agent, size: 64, color: Colors.white70),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -445,7 +466,10 @@ class _CallHomeState extends State<CallHome> {
             child: FilledButton.icon(
               onPressed: () => _start(sole),
               style: FilledButton.styleFrom(
-                backgroundColor: video ? Colors.indigo.shade500 : Colors.green.shade600,
+                // White on green-800 / indigo-500 meets the WCAG 4.5:1 text contrast minimum
+                // (M3's default dark onPrimary fails on these fills) — guarded by test.
+                backgroundColor: video ? Colors.indigo.shade500 : Colors.green.shade800,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               icon: Icon(video ? Icons.videocam : Icons.call),
@@ -462,7 +486,9 @@ class _CallHomeState extends State<CallHome> {
               child: FilledButton.icon(
                 onPressed: () => _start(CallType.audio),
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.green.shade600,
+                  // White on green-800 meets WCAG 4.5:1 (M3's dark onPrimary fails here).
+                  backgroundColor: Colors.green.shade800,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 icon: const Icon(Icons.call),
@@ -475,6 +501,7 @@ class _CallHomeState extends State<CallHome> {
                 onPressed: () => _start(CallType.video),
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.indigo.shade500,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 icon: const Icon(Icons.videocam),
@@ -530,6 +557,7 @@ class _CallHomeState extends State<CallHome> {
           height: 72,
           child: FloatingActionButton(
             backgroundColor: Colors.red.shade600,
+            tooltip: 'End call',
             onPressed: _controller.endCall,
             child: const Icon(Icons.call_end, size: 32),
           ),
@@ -559,35 +587,54 @@ class _CallHomeState extends State<CallHome> {
             }
           }
 
+          // Screen-reader names: digits read as-is (with their letters), symbols by name.
+          String keyLabel(String d, String? letters) => switch (d) {
+                '*' => 'Star',
+                '#' => 'Pound',
+                _ => letters == null ? d : '$d, $letters',
+              };
+
           Widget key(String d, [String? letters]) => Expanded(
-                child: InkWell(
+                child: Semantics(
+                  button: true,
+                  label: keyLabel(d, letters),
                   onTap: () => tap(d),
-                  borderRadius: BorderRadius.circular(40),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Column(
-                      children: [
-                        Text(d, style: const TextStyle(color: Colors.white, fontSize: 30)),
-                        Text(letters ?? ' ',
-                            style: const TextStyle(color: Colors.white38, fontSize: 10)),
-                      ],
+                  excludeSemantics: true,
+                  child: InkWell(
+                    onTap: () => tap(d),
+                    borderRadius: BorderRadius.circular(40),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        children: [
+                          Text(d, style: const TextStyle(color: Colors.white, fontSize: 30)),
+                          Text(letters ?? ' ',
+                              style: const TextStyle(color: Colors.white60, fontSize: 10)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               );
 
           return SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    dialed.isEmpty ? 'Enter digits' : dialed,
-                    style: TextStyle(
-                      color: dialed.isEmpty ? Colors.white38 : Colors.white,
-                      fontSize: 26,
-                      letterSpacing: 4,
+                  // liveRegion: each sent digit is announced by the screen reader.
+                  Semantics(
+                    liveRegion: true,
+                    label: dialed.isEmpty ? 'No digits entered yet' : 'Sent: $dialed',
+                    excludeSemantics: true,
+                    child: Text(
+                      dialed.isEmpty ? 'Enter digits' : dialed,
+                      style: TextStyle(
+                        color: dialed.isEmpty ? Colors.white70 : Colors.white,
+                        fontSize: 26,
+                        letterSpacing: 4,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -610,32 +657,42 @@ class _CallHomeState extends State<CallHome> {
     required String label,
     VoidCallback? onTap,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Material(
-          color: active ? Colors.white : Colors.white12,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(
-              width: 60,
-              height: 60,
-              child: Icon(
-                icon,
-                color: onTap == null
-                    ? Colors.white24
-                    : active
-                        ? Colors.black87
-                        : Colors.white,
+    // One semantics node per control: explicit label + tap action, button role, and
+    // enabled/selected state — the icon and caption below are presentation only.
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      selected: active,
+      label: label,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: active ? Colors.white : Colors.white12,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 60,
+                height: 60,
+                child: Icon(
+                  icon,
+                  color: onTap == null
+                      ? Colors.white24
+                      : active
+                          ? Colors.black87
+                          : Colors.white,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-      ],
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        ],
+      ),
     );
   }
 }

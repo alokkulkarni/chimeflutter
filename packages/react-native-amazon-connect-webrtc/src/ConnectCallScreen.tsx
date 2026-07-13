@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { parseEnabledCallTypes, soleCallType } from './callTypes';
 import { ConnectVideoView } from './ConnectVideoView';
@@ -38,11 +46,44 @@ const KEYPAD: Array<Array<[string, string]>> = [
   [['*', ' '], ['0', '+'], ['#', ' ']],
 ];
 
+/** Screen-reader name for a keypad key: digits read with their letters, symbols by name. */
+export function keypadKeyLabel(digit: string, letters?: string): string {
+  if (digit === '*') return 'Star';
+  if (digit === '#') return 'Pound';
+  const trimmed = letters?.trim();
+  return trimmed ? `${digit}, ${trimmed}` : digit;
+}
+
+/** What screen readers announce when the call state changes. */
+export function stateAnnouncement(state: CallState): string {
+  switch (state) {
+    case 'idle':
+      return 'Ready to call';
+    case 'connecting':
+      return 'Connecting call';
+    case 'ringing':
+      return 'Ringing';
+    case 'connected':
+      return 'Call connected';
+    case 'reconnecting':
+      return 'Reconnecting call';
+    case 'disconnected':
+      return 'Call ended';
+    case 'failed':
+      return 'Call failed';
+  }
+}
+
 /**
  * Ready-made WhatsApp-style call screen — the React Native counterpart of the Flutter module's
  * `CallHome`. Handles the audio/video chooser (or auto-dial when a single call type is enabled),
  * in-call controls (mute / speaker / video / camera-flip), a DTMF keypad for IVR menus, and the
  * remote + local (picture-in-picture) video tiles. Pure react-native primitives — no extra deps.
+ *
+ * Accessibility: every touchable exposes a role, name and state to VoiceOver/TalkBack; call-state
+ * changes and DTMF sends are announced (live regions + announceForAccessibility); decorative
+ * glyphs are hidden from assistive tech; text meets WCAG 4.5:1 contrast; touch targets are
+ * ≥ 48dp. Guarded by the accessibility test suite.
  */
 export function ConnectCallScreen({
   controller,
@@ -89,7 +130,11 @@ export function ConnectCallScreen({
   );
 
   useEffect(() => {
-    const offState = controller.onStateChanged(setState);
+    const offState = controller.onStateChanged((next) => {
+      setState(next);
+      // Screen readers hear every call-state transition without focusing the status text.
+      AccessibilityInfo.announceForAccessibility(stateAnnouncement(next));
+    });
     const offEvent = controller.onEvent((e) => {
       if (e.type === 'remoteVideoAvailable') setRemoteTile(e.tileId);
       if (e.type === 'localVideoAvailable') setLocalTile(e.tileId);
@@ -132,7 +177,8 @@ export function ConnectCallScreen({
     return undefined;
   }, [state]);
 
-  const active = state === 'connecting' || state === 'ringing' || state === 'connected' || state === 'reconnecting';
+  const active =
+    state === 'connecting' || state === 'ringing' || state === 'connected' || state === 'reconnecting';
 
   const status = (): string => {
     switch (state) {
@@ -167,16 +213,34 @@ export function ConnectCallScreen({
 
   return (
     <View style={styles.root}>
-      {remoteTile != null && <ConnectVideoView tileId={remoteTile} style={StyleSheet.absoluteFill} />}
-      {localTile != null && <ConnectVideoView tileId={localTile} mirror style={styles.localPreview} />}
+      {remoteTile != null && (
+        <ConnectVideoView
+          tileId={remoteTile}
+          accessibilityLabel="Agent video"
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      {localTile != null && (
+        <ConnectVideoView
+          tileId={localTile}
+          mirror
+          accessibilityLabel="Your camera preview"
+          style={styles.localPreview}
+        />
+      )}
 
       <View style={styles.header}>
-        <Text style={styles.title}>{displayName}</Text>
-        <Text style={styles.status}>{status()}</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          {displayName}
+        </Text>
+        <Text style={styles.status} accessibilityLiveRegion="polite">
+          {status()}
+        </Text>
       </View>
 
       {remoteTile == null && (
-        <View style={styles.avatarWrap}>
+        // Decorative — the header already conveys who the call is with and its state.
+        <View style={styles.avatarWrap} importantForAccessibility="no-hide-descendants" accessible={false}>
           <View style={[styles.avatar, (state === 'connecting' || state === 'ringing') && styles.avatarPulsing]}>
             <Text style={styles.avatarGlyph}>🎧</Text>
           </View>
@@ -184,18 +248,22 @@ export function ConnectCallScreen({
       )}
 
       <View style={styles.footer}>
-        {error != null && <Text style={styles.error}>{error}</Text>}
+        {error != null && (
+          <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+            {error}
+          </Text>
+        )}
 
         {!active ? (
           sole ? (
             <RoundedButton
               label={sole === 'video' ? 'Video call' : 'Audio call'}
-              color={sole === 'video' ? '#5c6bc0' : '#43a047'}
+              color={sole === 'video' ? '#5c6bc0' : '#2e7d32'}
               onPress={() => start(sole)}
             />
           ) : (
             <View style={styles.row}>
-              <RoundedButton label="Audio call" color="#43a047" onPress={() => start('audio')} flex />
+              <RoundedButton label="Audio call" color="#2e7d32" onPress={() => start('audio')} flex />
               <View style={styles.gap} />
               <RoundedButton label="Video call" color="#5c6bc0" onPress={() => start('video')} flex />
             </View>
@@ -205,12 +273,14 @@ export function ConnectCallScreen({
             <View style={styles.controlsRow}>
               <ControlButton
                 label="Mute"
+                accessibilityLabel={muted ? 'Unmute microphone' : 'Mute microphone'}
                 glyph={muted ? '🔇' : '🎙'}
                 active={muted}
                 onPress={() => controller.setMuted(!muted)}
               />
               <ControlButton
                 label="Speaker"
+                accessibilityLabel={speakerOn ? 'Turn speaker off' : 'Turn speaker on'}
                 glyph="🔊"
                 active={speakerOn}
                 onPress={async () => {
@@ -221,6 +291,7 @@ export function ConnectCallScreen({
               {videoEnabled && (
                 <ControlButton
                   label="Video"
+                  accessibilityLabel={videoOn ? 'Turn camera off' : 'Turn camera on'}
                   glyph={videoOn ? '📹' : '🚫'}
                   active={videoOn}
                   onPress={async () => {
@@ -229,33 +300,74 @@ export function ConnectCallScreen({
                   }}
                 />
               )}
-              <ControlButton label="Keypad" glyph="🔢" onPress={() => setKeypadVisible(true)} />
+              <ControlButton
+                label="Keypad"
+                accessibilityLabel="Open keypad"
+                glyph="🔢"
+                onPress={() => setKeypadVisible(true)}
+              />
               {videoEnabled && (
                 <ControlButton
                   label="Flip"
+                  accessibilityLabel="Switch camera"
                   glyph="🔄"
                   disabled={!videoOn}
                   onPress={() => controller.switchCamera()}
                 />
               )}
             </View>
-            <Pressable style={styles.hangup} onPress={() => controller.endCall()}>
-              <Text style={styles.hangupGlyph}>📞</Text>
+            <Pressable
+              style={styles.hangup}
+              accessibilityRole="button"
+              accessibilityLabel="End call"
+              onPress={() => controller.endCall()}
+            >
+              <Text style={styles.hangupGlyph} accessible={false} importantForAccessibility="no">
+                📞
+              </Text>
             </Pressable>
           </>
         )}
       </View>
 
       <Modal visible={keypadVisible} transparent animationType="slide" onRequestClose={() => setKeypadVisible(false)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setKeypadVisible(false)}>
-          <Pressable style={styles.sheet} onPress={() => undefined}>
-            <Text style={styles.dialed}>{dialed.length === 0 ? 'Enter digits' : dialed}</Text>
+        <Pressable
+          style={styles.sheetBackdrop}
+          accessibilityRole="button"
+          accessibilityLabel="Close keypad"
+          onPress={() => setKeypadVisible(false)}
+        >
+          {/* Structural tap-catcher (stops backdrop dismissal) — not a control, hidden from AT. */}
+          <Pressable
+            style={styles.sheet}
+            accessibilityViewIsModal
+            accessible={false}
+            importantForAccessibility="no"
+            onPress={() => undefined}
+          >
+            <Text
+              style={styles.dialed}
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={dialed.length === 0 ? 'No digits entered yet' : `Sent: ${dialed}`}
+            >
+              {dialed.length === 0 ? 'Enter digits' : dialed}
+            </Text>
             {KEYPAD.map((row, i) => (
               <View key={i} style={styles.keypadRow}>
                 {row.map(([digit, letters]) => (
-                  <Pressable key={digit} style={styles.key} onPress={() => sendDigit(digit)}>
-                    <Text style={styles.keyDigit}>{digit}</Text>
-                    <Text style={styles.keyLetters}>{letters}</Text>
+                  <Pressable
+                    key={digit}
+                    style={styles.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={keypadKeyLabel(digit, letters)}
+                    onPress={() => sendDigit(digit)}
+                  >
+                    <Text style={styles.keyDigit} accessible={false} importantForAccessibility="no">
+                      {digit}
+                    </Text>
+                    <Text style={styles.keyLetters} accessible={false} importantForAccessibility="no">
+                      {letters}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -279,7 +391,12 @@ function RoundedButton({
   flex?: boolean;
 }) {
   return (
-    <Pressable style={[styles.cta, { backgroundColor: color }, flex && styles.flex1]} onPress={onPress}>
+    <Pressable
+      style={[styles.cta, { backgroundColor: color }, flex && styles.flex1]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+    >
       <Text style={styles.ctaLabel}>{label}</Text>
     </Pressable>
   );
@@ -287,12 +404,14 @@ function RoundedButton({
 
 function ControlButton({
   label,
+  accessibilityLabel,
   glyph,
   active,
   disabled,
   onPress,
 }: {
   label: string;
+  accessibilityLabel: string;
   glyph: string;
   active?: boolean;
   disabled?: boolean;
@@ -302,12 +421,19 @@ function ControlButton({
     <View style={styles.control}>
       <Pressable
         style={[styles.controlCircle, active && styles.controlActive, disabled && styles.controlDisabled]}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ selected: active === true, disabled: disabled === true }}
         disabled={disabled}
         onPress={onPress}
       >
-        <Text style={styles.controlGlyph}>{glyph}</Text>
+        <Text style={styles.controlGlyph} accessible={false} importantForAccessibility="no">
+          {glyph}
+        </Text>
       </Pressable>
-      <Text style={styles.controlLabel}>{label}</Text>
+      <Text style={styles.controlLabel} accessible={false} importantForAccessibility="no">
+        {label}
+      </Text>
     </View>
   );
 }
@@ -316,7 +442,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#14162e' },
   header: { alignItems: 'center', marginTop: 64 },
   title: { color: 'white', fontSize: 26, fontWeight: '600' },
-  status: { color: '#ffffff99', fontSize: 15, marginTop: 6 },
+  status: { color: '#ffffffcc', fontSize: 15, marginTop: 6 },
   avatarWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   avatar: {
     width: 132,
@@ -335,7 +461,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   gap: { width: 14 },
   flex1: { flex: 1 },
-  cta: { paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  cta: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', minHeight: 48, justifyContent: 'center' },
   ctaLabel: { color: 'white', fontSize: 16, fontWeight: '600' },
   controlsRow: { flexDirection: 'row', justifyContent: 'space-evenly', marginBottom: 28 },
   control: { alignItems: 'center' },
@@ -350,7 +476,7 @@ const styles = StyleSheet.create({
   controlActive: { backgroundColor: 'white' },
   controlDisabled: { opacity: 0.35 },
   controlGlyph: { fontSize: 24 },
-  controlLabel: { color: '#ffffff8a', fontSize: 12, marginTop: 6 },
+  controlLabel: { color: '#ffffffcc', fontSize: 12, marginTop: 6 },
   hangup: {
     alignSelf: 'center',
     width: 72,
@@ -370,9 +496,9 @@ const styles = StyleSheet.create({
   },
   dialed: { color: 'white', fontSize: 26, letterSpacing: 4, textAlign: 'center', marginBottom: 8 },
   keypadRow: { flexDirection: 'row' },
-  key: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  key: { flex: 1, alignItems: 'center', paddingVertical: 12, minHeight: 48, justifyContent: 'center' },
   keyDigit: { color: 'white', fontSize: 30 },
-  keyLetters: { color: '#ffffff5c', fontSize: 10 },
+  keyLetters: { color: '#ffffff99', fontSize: 10 },
   localPreview: {
     position: 'absolute',
     top: 56,

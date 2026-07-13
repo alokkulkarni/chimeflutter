@@ -138,7 +138,7 @@ void main() {
 
   test('sendDtmf surfaces backend errors as typed exceptions', () async {
     final mock = MockClient((req) async =>
-        http.Response(jsonEncode({'error': {'code': 'UPSTREAM_ERROR', 'message': 'x'}}), 502));
+        http.Response(jsonEncode({'error': {'code': 'UPSTREAM_ERROR', 'message': 'x'}}), 502),);
     await expectLater(
       _client(mock).sendDtmf(connectionToken: 'ct', digits: '1'),
       throwsA(isA<BackendException>()),
