@@ -17,9 +17,16 @@ import { handler as endCallHandler } from '../lambda/endCall';
 import { handler as healthHandler } from '../lambda/health';
 import { handler as participantHandler } from '../lambda/participant';
 import { handler as startCallHandler } from '../lambda/startCall';
+// The outbound entrypoints wire themselves lazily, so importing them here never crashes a
+// container that has no outbound configuration — those routes just answer 501.
+import { handler as outboundCallActionHandler } from '../lambda/outboundCallAction';
+import { handler as registerDeviceHandler } from '../lambda/registerDevice';
+import { handler as startOutboundCallHandler } from '../lambda/startOutboundCall';
+import { handler as sweepOutboundCallsHandler } from '../lambda/sweepOutboundCalls';
 import { MAX_BODY_BYTES, resolveRoute, toApiGatewayEvent, type RouteKey } from './adapter';
 
 const PORT = Number(process.env.PORT ?? '8080');
+const SWEEP_INTERVAL_MS = 60_000;
 
 const handlers: Record<
   RouteKey,
@@ -29,6 +36,9 @@ const handlers: Record<
   startCall: (event) => startCallHandler(event),
   endCall: (event) => endCallHandler(event),
   participant: (event) => participantHandler(event),
+  registerDevice: (event) => registerDeviceHandler(event),
+  startOutboundCall: (event) => startOutboundCallHandler(event),
+  outboundCallAction: (event) => outboundCallActionHandler(event),
 };
 
 function send(
@@ -118,6 +128,17 @@ server.listen(PORT, () => {
     JSON.stringify({ level: 'info', msg: 'chimeflutter-backend listening', port: PORT, service: 'container' }),
   );
 });
+
+// Ring-timeout sweeper — the container equivalent of the Lambda EventBridge schedule. Gated on the
+// outbound table being configured so plain (inbound-only) deployments run no timer at all.
+if (process.env.OUTBOUND_CALLS_TABLE) {
+  setInterval(() => {
+    sweepOutboundCallsHandler().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error(JSON.stringify({ level: 'error', msg: 'outbound sweep failed', error: String(e) }));
+    });
+  }, SWEEP_INTERVAL_MS).unref();
+}
 
 // Graceful shutdown — ECS/Kubernetes send SIGTERM before killing the task/pod.
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {

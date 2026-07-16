@@ -23,6 +23,32 @@ Parameters:
     Type: String
     Default: info
     AllowedValues: [debug, info, warn, error]
+  ConnectOutboundContactFlowId:
+    Type: String
+    Default: ''
+    Description: >
+      Published inbound flow used for SIMULATED-OUTBOUND (agent-initiated) calls: it must set the
+      working queue to the agent from $.Attributes.targetAgentArn and transfer (see
+      docs/connect/chimeflutter-outbound-to-agent.json). Empty ⇒ falls back to
+      ConnectContactFlowId (use a combined flow that branches on $.Attributes.direction).
+  OutboundRingTimeoutSeconds:
+    Type: Number
+    Default: 45
+    MinValue: 15
+    MaxValue: 120
+    Description: How long the customer's device rings before the outbound contact is stopped.
+  ApnsVoipPlatformApplicationArn:
+    Type: String
+    Default: ''
+    Description: >
+      SNS platform application ARN for APNS_VOIP (iOS VoIP pushes). Created out-of-band with your
+      APNs .p8 key (docs/OUTBOUND_CALLS.md). Empty ⇒ iOS device registration is rejected.
+  FcmPlatformApplicationArn:
+    Type: String
+    Default: ''
+    Description: >
+      SNS platform application ARN for FCM (Android pushes). Created out-of-band with your FCM
+      service-account credentials. Empty ⇒ Android device registration is rejected.
 
 Globals:
   Function:
@@ -38,6 +64,12 @@ Globals:
         CONNECT_INSTANCE_ID: !Ref ConnectInstanceId
         CONNECT_CONTACT_FLOW_ID: !Ref ConnectContactFlowId
         ALLOWED_CLIENT_ATTRIBUTE_KEYS: !Ref AllowedClientAttributeKeys
+        CONNECT_OUTBOUND_CONTACT_FLOW_ID: !Ref ConnectOutboundContactFlowId
+        OUTBOUND_RING_TIMEOUT_SECONDS: !Ref OutboundRingTimeoutSeconds
+        DEVICES_TABLE: !Ref DevicesTable
+        OUTBOUND_CALLS_TABLE: !Ref OutboundCallsTable
+        APNS_VOIP_PLATFORM_APPLICATION_ARN: !Ref ApnsVoipPlatformApplicationArn
+        FCM_PLATFORM_APPLICATION_ARN: !Ref FcmPlatformApplicationArn
 
 Resources:
   # NOTE: this API has NO built-in authorizer. Before production, front it with YOUR auth:
@@ -151,6 +183,210 @@ Resources:
             Method: POST
             Path: /calls/dtmf
 
+  # ---------------------------------------------------------------------------------------------
+  # Simulated outbound (agent-initiated) calling — docs/OUTBOUND_CALLS.md
+  # ---------------------------------------------------------------------------------------------
+
+  DevicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: customerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: customerId
+          KeyType: HASH
+
+  OutboundCallsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: callId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: callId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  RegisterDeviceFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/registerDevice.ts
+    Properties:
+      Handler: registerDevice.handler
+      Description: POST /v1/devices — registers a device push token for simulated-outbound calls.
+      Policies:
+        - Statement:
+            - Sid: DevicesTableWrite
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt DevicesTable.Arn
+            # The platform-application ARNs are optional parameters, so the resources are scoped to
+            # this account+region's SNS mobile-push apps/endpoints rather than a possibly-empty Ref.
+            - Sid: SnsEndpointManagement
+              Effect: Allow
+              Action:
+                - sns:CreatePlatformEndpoint
+                - sns:SetEndpointAttributes
+              Resource:
+                - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:app/*
+                - !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:endpoint/*
+      Events:
+        RegisterDevice:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /devices
+
+  StartOutboundCallFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/startOutboundCall.ts
+    Properties:
+      Handler: startOutboundCall.handler
+      Description: >-
+        POST /v1/calls/outbound — agent-initiated (simulated outbound) call: checks the agent is
+        Available, starts a WebRTC contact routed to the agent queue, and pushes the customer device.
+      Policies:
+        - Statement:
+            - Sid: ConnectOutbound
+              Effect: Allow
+              Action:
+                - connect:StartWebRTCContact
+                - connect:StopContact
+                - connect:GetCurrentUserData
+              Resource:
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/*
+            - Sid: DevicesTableRead
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt DevicesTable.Arn
+            - Sid: OutboundCallsWrite
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt OutboundCallsTable.Arn
+            - Sid: SnsPublishPush
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:endpoint/*
+      Events:
+        StartOutboundCall:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /calls/outbound
+
+  OutboundCallActionFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/outboundCallAction.ts
+    Properties:
+      Handler: outboundCallAction.handler
+      Description: >-
+        GET /v1/calls/outbound/{callId} (status) and POST .../answer | .../decline — the device
+        exchanges the pushed callId for join credentials, or declines to release the agent.
+      Policies:
+        - Statement:
+            - Sid: OutboundCallsReadWrite
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt OutboundCallsTable.Arn
+            - Sid: ConnectStopContact
+              Effect: Allow
+              Action:
+                - connect:StopContact
+              Resource:
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/contact/*
+      Events:
+        OutboundCallStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: GET
+            Path: /calls/outbound/{callId}
+        OutboundCallAnswer:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /calls/outbound/{callId}/answer
+        OutboundCallDecline:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Method: POST
+            Path: /calls/outbound/{callId}/decline
+
+  SweepOutboundCallsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda/sweepOutboundCalls.ts
+    Properties:
+      Handler: sweepOutboundCalls.handler
+      Description: >-
+        Ring-timeout sweeper — stops simulated-outbound contacts nobody answered, releasing the
+        agent's voice slot.
+      Policies:
+        - Statement:
+            - Sid: OutboundCallsSweep
+              Effect: Allow
+              Action:
+                - dynamodb:Scan
+                - dynamodb:UpdateItem
+              Resource: !GetAtt OutboundCallsTable.Arn
+            - Sid: ConnectStopContact
+              Effect: Allow
+              Action:
+                - connect:StopContact
+              Resource:
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}
+                - !Sub arn:${AWS::Partition}:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/contact/*
+      Events:
+        Sweep:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 minute)
+            Description: Times out unanswered simulated-outbound calls.
+
   HealthFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -177,3 +413,10 @@ Outputs:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
   StartCallEndpoint:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1/calls
+  OutboundCallEndpoint:
+    Description: Agent-side endpoint that starts a simulated-outbound call (secure before production).
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1/calls/outbound
+  DevicesTableName:
+    Value: !Ref DevicesTable
+  OutboundCallsTableName:
+    Value: !Ref OutboundCallsTable

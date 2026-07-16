@@ -16,7 +16,7 @@ final class ChimeSessionHolder {
 @objc(ConnectWebrtc)
 class ConnectWebrtcModule: RCTEventEmitter, ChimeEventEmitter {
     private var callManager: ChimeCallManager!
-    private var callKitManager: ConnectCallKitManager?
+    private let callKitManager = ConnectCallKitManager.shared
     private var usingCallKit = false
     private var hasListeners = false
 
@@ -24,6 +24,12 @@ class ConnectWebrtcModule: RCTEventEmitter, ChimeEventEmitter {
         super.init()
         callManager = ChimeCallManager(emitter: self)
         ChimeSessionHolder.shared.callManager = callManager
+        // Bind the shared CallKit singleton (which the host's PushKit delegate may already have
+        // used to show an incoming call) to this bridge's media manager and event stream.
+        ConnectCallKitManager.shared.chime = callManager
+        ConnectCallKitManager.shared.eventListener = { [weak self] event in
+            self?.emit(event)
+        }
     }
 
     @objc override static func requiresMainQueueSetup() -> Bool { false }
@@ -65,15 +71,16 @@ class ConnectWebrtcModule: RCTEventEmitter, ChimeEventEmitter {
         let callKitEnabled = (session["callKitEnabled"] as? Bool) ?? false
         let displayName = (session["callDisplayName"] as? String) ?? "Support"
         let isVideo = (session["callType"] as? String) == "video"
+        let asIncoming = (session["asIncoming"] as? Bool) ?? false
         do {
-            // Builds the media session; with CallKit, audio starts later in didActivate.
-            try callManager.join(sessionMap: session, callKitEnabled: callKitEnabled)
-            usingCallKit = callKitEnabled
-            if callKitEnabled {
-                let manager = callKitManager ?? ConnectCallKitManager(chime: callManager)
-                callKitManager = manager
-                manager.startOutgoingCall(displayName: displayName, isVideo: isVideo)
+            // Builds the media session; with CallKit, audio starts later in didActivate (or
+            // immediately for an answered incoming call whose didActivate already fired).
+            try callManager.join(sessionMap: session, callKitEnabled: callKitEnabled || asIncoming)
+            usingCallKit = callKitEnabled || asIncoming
+            if callKitEnabled && !asIncoming {
+                callKitManager.startOutgoingCall(displayName: displayName, isVideo: isVideo)
             }
+            // asIncoming: CallKit is already showing the answered call from reportIncomingCall.
             resolve(nil)
         } catch let error as ChimeAdapterError {
             reject("sdkError", "adapter: \(error)", error)
@@ -82,13 +89,52 @@ class ConnectWebrtcModule: RCTEventEmitter, ChimeEventEmitter {
         }
     }
 
+    @objc(reportIncomingCall:resolver:rejecter:)
+    func reportIncomingCall(
+        _ args: NSDictionary,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        // JS-side push delivery. NOTE: on iOS, VoIP pushes normally arrive in the HOST app's
+        // PushKit delegate, which must call ConnectCallKitManager.shared.reportIncomingCall
+        // directly (Apple requires it synchronously); this method covers in-app signalling.
+        guard let callId = args["callId"] as? String, !callId.isEmpty else {
+            reject("sdkError", "reportIncomingCall requires a callId", nil)
+            return
+        }
+        usingCallKit = true
+        callKitManager.reportIncomingCall(
+            callId: callId,
+            displayName: (args["displayName"] as? String) ?? "Support",
+            isVideo: (args["isVideo"] as? Bool) ?? false,
+            timeoutSeconds: (args["timeoutSeconds"] as? Int) ?? 45)
+        resolve(nil)
+    }
+
+    @objc(dismissIncomingCall:rejecter:)
+    func dismissIncomingCall(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        rejecter _: @escaping RCTPromiseRejectBlock
+    ) {
+        callKitManager.dismissIncomingCall()
+        resolve(nil)
+    }
+
+    @objc(getPendingIncomingCall:rejecter:)
+    func getPendingIncomingCall(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        rejecter _: @escaping RCTPromiseRejectBlock
+    ) {
+        resolve(callKitManager.consumePendingAnsweredCall())
+    }
+
     @objc(leave:rejecter:)
     func leave(
         _ resolve: @escaping RCTPromiseResolveBlock,
         rejecter _: @escaping RCTPromiseRejectBlock
     ) {
         if usingCallKit {
-            callKitManager?.requestEnd() // triggers CXEndCallAction → callManager.leave()
+            callKitManager.requestEnd() // triggers CXEndCallAction → callManager.leave()
         } else {
             callManager.leave()
         }
@@ -102,7 +148,7 @@ class ConnectWebrtcModule: RCTEventEmitter, ChimeEventEmitter {
         rejecter _: @escaping RCTPromiseRejectBlock
     ) {
         if usingCallKit {
-            callKitManager?.requestMuted(muted) // CXSetMutedCallAction keeps system UI in sync
+            callKitManager.requestMuted(muted) // CXSetMutedCallAction keeps system UI in sync
             resolve(true)
         } else {
             resolve(callManager.setMuted(muted))
@@ -152,8 +198,8 @@ class ConnectWebrtcModule: RCTEventEmitter, ChimeEventEmitter {
                let type = event["type"] as? String, type == "stateChanged",
                let state = event["state"] as? String {
                 switch state {
-                case "connected": self.callKitManager?.reportConnected()
-                case "disconnected", "failed": self.callKitManager?.reportRemoteEnded()
+                case "connected": self.callKitManager.reportConnected()
+                case "disconnected", "failed": self.callKitManager.reportRemoteEnded()
                 default: break
                 }
             }

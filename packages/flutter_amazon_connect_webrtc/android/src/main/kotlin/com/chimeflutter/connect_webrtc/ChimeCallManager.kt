@@ -55,7 +55,10 @@ class ChimeCallManager(
      * `callDisplayName`, `callType`. */
     fun join(args: Map<String, Any?>) {
         val configuration = ChimeMeetingSessionAdapter.makeConfiguration(args)
-        val systemCallUI = (args["callKitEnabled"] as? Boolean ?: false) &&
+        // An answered incoming (simulated-outbound) call always uses Telecom when available so the
+        // system owns audio focus/routing, same as an outgoing system-UI call.
+        val asIncoming = args["asIncoming"] as? Boolean ?: false
+        val systemCallUI = ((args["callKitEnabled"] as? Boolean ?: false) || asIncoming) &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
         val displayName = args["callDisplayName"] as? String ?: "Support"
         val isVideo = (args["callType"] as? String) == "video"
@@ -74,13 +77,23 @@ class ChimeCallManager(
             usingTelecom = true
             val manager = ConnectTelecomManager(context)
             telecom = manager
-            manager.startOutgoingCall(
-                displayName = displayName,
-                isVideo = isVideo,
-                onActive = { startMedia() },
-                onDisconnected = { stopMedia() },
-                onMuteChanged = { muted -> applyMuteFromSystem(muted) },
-            )
+            if (asIncoming) {
+                manager.startAnsweredIncomingCall(
+                    displayName = displayName,
+                    isVideo = isVideo,
+                    onActive = { startMedia() },
+                    onDisconnected = { stopMedia() },
+                    onMuteChanged = { muted -> applyMuteFromSystem(muted) },
+                )
+            } else {
+                manager.startOutgoingCall(
+                    displayName = displayName,
+                    isVideo = isVideo,
+                    onActive = { startMedia() },
+                    onDisconnected = { stopMedia() },
+                    onMuteChanged = { muted -> applyMuteFromSystem(muted) },
+                )
+            }
         } else {
             usingTelecom = false
             requestAudioFocus()

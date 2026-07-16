@@ -120,7 +120,17 @@ Check contact attributes → $.Attributes.issueType == "billing" → Set working
                           → $.Attributes.tier == "gold"        → Set working queue: Priority
 ```
 
-## 5. Test it
+## 5. Receiving agent-initiated calls (simulated outbound)
+
+The plugin also supports calls the **agent** places to the app: `POST /calls/outbound` starts an
+inbound WebRTC contact routed straight to the agent's personal queue (their voice slot is occupied
+while the phone rings — no other calls reach them) and pushes the device (APNs VoIP / FCM). The
+library shows the OS incoming-call UI; on answer the app calls
+`controller.answerIncomingCall(callId: ...)` and joins the normal media path. Setup (SNS platform
+apps, outbound flow import, PushKit/FCM host wiring, cold-start handling) is covered step by step
+in **[OUTBOUND_CALLS.md](./OUTBOUND_CALLS.md)**.
+
+## 6. Test it
 
 - Backend: `cd backend && npm test`.
 - Plugin (Dart): `cd packages/flutter_amazon_connect_webrtc && flutter test`.

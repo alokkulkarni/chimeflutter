@@ -29,5 +29,6 @@ export type {
   DeviceInfo,
   MediaPlacement,
   Meeting,
+  PendingIncomingCall,
   TokenProvider,
 } from './types';

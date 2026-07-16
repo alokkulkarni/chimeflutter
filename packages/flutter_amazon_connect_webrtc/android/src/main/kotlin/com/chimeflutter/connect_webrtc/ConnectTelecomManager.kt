@@ -85,6 +85,52 @@ class ConnectTelecomManager(context: Context) {
         }
     }
 
+    /**
+     * Registers an ALREADY-ANSWERED incoming (simulated-outbound) call with Telecom. The user
+     * consented on the incoming-call notification, so the call is added with DIRECTION_INCOMING
+     * and answered programmatically — Telecom then owns audio focus/routing exactly like the
+     * outgoing path. Media starts via [onActive] (idempotent across answer/onSetActive/onAnswer).
+     */
+    fun startAnsweredIncomingCall(
+        displayName: String,
+        isVideo: Boolean,
+        onActive: () -> Unit,
+        onDisconnected: () -> Unit,
+        onMuteChanged: (Boolean) -> Unit,
+    ) {
+        val callType = if (isVideo) {
+            CallAttributesCompat.CALL_TYPE_VIDEO_CALL
+        } else {
+            CallAttributesCompat.CALL_TYPE_AUDIO_CALL
+        }
+        val attributes = CallAttributesCompat(
+            displayName = displayName,
+            address = Uri.parse("sip:support@chimeflutter"),
+            direction = CallAttributesCompat.DIRECTION_INCOMING,
+            callType = callType,
+        )
+
+        callJob = scope.launch {
+            callsManager.addCall(
+                attributes,
+                onAnswer = { markActive(onActive) },
+                onDisconnect = { _ -> onDisconnected() },
+                onSetActive = { markActive(onActive) },
+                onSetInactive = { /* hold — not supported; media keeps running */ },
+            ) {
+                control = this
+                launch {
+                    when (answer(callType)) {
+                        is CallControlResult.Success -> markActive(onActive)
+                        is CallControlResult.Error -> onDisconnected()
+                    }
+                }
+                launch { isMuted.collect { onMuteChanged(it) } }
+                launch { availableEndpoints.collect { endpoints = it } }
+            }
+        }
+    }
+
     private fun markActive(onActive: () -> Unit) {
         if (started) return
         started = true

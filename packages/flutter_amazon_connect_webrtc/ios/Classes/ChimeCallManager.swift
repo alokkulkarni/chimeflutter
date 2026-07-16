@@ -16,6 +16,10 @@ final class ChimeCallManager: NSObject {
     private(set) var meetingSession: MeetingSession?
     private var isMuted = false
     private var mediaStarted = false
+    /// True once CallKit has activated the audio session. For an ANSWERED incoming call,
+    /// `didActivate` fires before the join credentials are fetched — `join` checks this flag and
+    /// starts media immediately instead of waiting for a `didActivate` that already happened.
+    private var callKitAudioActive = false
 
     init(emitter: ChimeEventEmitter) {
         self.emitter = emitter
@@ -43,7 +47,10 @@ final class ChimeCallManager: NSObject {
         if callKitEnabled {
             // CRITICAL: with CallKit, `audioVideo.start(callKitEnabled:)` MUST be called from the
             // CXProvider's `didActivate` (via startAudioVideoForCallKit()) — never here — or audio
-            // will not start (per AWS's CallKit integration guidance).
+            // will not start (per AWS's CallKit integration guidance). The one exception: an
+            // answered INCOMING call whose didActivate already fired while the credentials were
+            // being fetched — start now, the session is active.
+            if callKitAudioActive { startAudioVideoForCallKit() }
             return
         }
 
@@ -56,6 +63,7 @@ final class ChimeCallManager: NSObject {
     /// Called by the CallKit coordinator from `CXProvider(_:didActivate:)`. Starts the Chime media
     /// once CallKit has activated the audio session (idempotent — didActivate may fire more than once).
     func startAudioVideoForCallKit() {
+        callKitAudioActive = true
         guard let audioVideo = meetingSession?.audioVideo, !mediaStarted else { return }
         mediaStarted = true
         do {
@@ -81,8 +89,14 @@ final class ChimeCallManager: NSObject {
         meetingSession = nil
         mediaStarted = false
         isMuted = false
+        callKitAudioActive = false
         deactivateAudioSession()
         emitState("disconnected")
+    }
+
+    /// CallKit deactivated the audio session (`didDeactivate`).
+    func callKitAudioSessionEnded() {
+        callKitAudioActive = false
     }
 
     @discardableResult

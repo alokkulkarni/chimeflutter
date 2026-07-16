@@ -63,7 +63,14 @@ session JWT (sent as `Authorization: Bearer …`) or `''` for no header.
 | `setSpeakerphone(enabled)` | Routes via the Chime device controller (iOS) / Telecom endpoints (Android) — the only reliable way under CallKit/Telecom. |
 | `getState()` / `getSession()` / `isInCall` | Current state / active `CallSession` (has `contactId`) / convenience. |
 | `onStateChanged(fn)` / `onEvent(fn)` | Subscriptions; both return their unsubscribe function. |
+| `answerIncomingCall(callId, callType?)` | Simulated outbound: permissions → `POST /calls/outbound/{callId}/answer` → attaches media to the call the OS is already showing (410 when no longer ringing). |
+| `declineIncomingCall(callId)` | Dismisses the ring UI (best-effort) + `POST .../decline` so the waiting agent is released immediately. |
+| `reportIncomingCall(callId, displayName, isVideo?, timeoutSeconds?)` | Shows the OS incoming-call UI for a push received on the JS side (Android FCM). iOS VoIP pushes are reported natively — see [OUTBOUND_CALLS.md](../OUTBOUND_CALLS.md). |
+| `handlePendingIncomingCall()` | Cold start: answers a call the user accepted before JS was running; `true` if one was resumed. |
 | `dispose()` | Unsubscribes from native events and clears listeners. |
+
+`BackendClient` additionally exposes `registerDevice(customerId, platform, pushToken)` — call it
+once after sign-in with the APNs **VoIP** token (iOS) / FCM registration token (Android).
 
 ### States and events
 
@@ -71,8 +78,9 @@ States: `idle → connecting → ringing → connected → (reconnecting ↔ con
 
 Events (`onEvent`): `stateChanged`, `muteChanged`, `participantJoined/Left`,
 `localVideoAvailable`, `remoteVideoAvailable`, `videoTileRemoved`, `audioRouteChanged`,
-`networkQualityChanged`, `error {code, message, fatal}` — identical to the Flutter contract
-(specs/003 §B.2).
+`networkQualityChanged`, `error {code, message, fatal}`, plus the simulated-outbound ring-UI
+outcomes `incomingCallAnswered {callId, isVideo}`, `incomingCallDeclined {callId}` and
+`incomingCallMissed {callId}` — identical to the Flutter contract (specs/003 §B.2).
 
 ### `<ConnectVideoView tileId={n} mirror? style? />`
 

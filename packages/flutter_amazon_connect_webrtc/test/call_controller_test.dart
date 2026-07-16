@@ -16,13 +16,16 @@ class FakeCallPlatform implements CallPlatform {
   @override
   Stream<CallEvent> get events => _events.stream;
 
+  Map<String, dynamic>? pendingIncomingCall;
+
   @override
   Future<void> join(
     CallSession session, {
     bool callKitEnabled = false,
     String callDisplayName = 'Support',
+    bool asIncoming = false,
   }) async {
-    calls.add('join:${session.contactId}');
+    calls.add(asIncoming ? 'joinIncoming:${session.contactId}' : 'join:${session.contactId}');
     if (joinShouldThrow) throw const MediaException('join failed');
   }
 
@@ -40,6 +43,18 @@ class FakeCallPlatform implements CallPlatform {
   Future<void> switchCamera() async => calls.add('switchCamera');
   @override
   Future<void> setSpeakerphoneEnabled(bool enabled) async => calls.add('speaker:$enabled');
+  @override
+  Future<void> reportIncomingCall({
+    required String callId,
+    required String displayName,
+    required bool isVideo,
+    required int timeoutSeconds,
+  }) async =>
+      calls.add('reportIncoming:$callId');
+  @override
+  Future<void> dismissIncomingCall() async => calls.add('dismissIncoming');
+  @override
+  Future<Map<String, dynamic>?> getPendingIncomingCall() async => pendingIncomingCall;
 
   void emitState(CallState s) => _states.add(s);
   void emitEvent(CallEvent e) => _events.add(e);
@@ -221,6 +236,105 @@ void main() {
     await controller.switchCamera();
     await controller.setSpeakerphone(true);
     expect(platform.calls, containsAll(['setMuted:true', 'video:true', 'switchCamera', 'speaker:true']));
+  });
+
+  group('simulated outbound (incoming calls)', () {
+    void stubAnswerSuccess() {
+      when(() => backend.answerOutboundCall(any(), correlationId: any(named: 'correlationId')))
+          .thenAnswer((_) async => _session());
+      when(() => backend.declineOutboundCall(any(), correlationId: any(named: 'correlationId')))
+          .thenAnswer((_) async {});
+    }
+
+    test('answerIncomingCall exchanges the callId and joins asIncoming', () async {
+      stubAnswerSuccess();
+      final controller = build();
+      final seen = <CallState>[];
+      controller.states.listen(seen.add);
+
+      await controller.answerIncomingCall(callId: 'call-1');
+
+      verify(() => backend.answerOutboundCall('call-1',
+          correlationId: any(named: 'correlationId'),),).called(1);
+      expect(platform.calls, contains('joinIncoming:contact-1'));
+      expect(controller.session?.contactId, 'contact-1');
+
+      platform.emitState(CallState.connected);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.state.value, CallState.connected);
+      expect(seen, containsAllInOrder([CallState.connecting, CallState.connected]));
+    });
+
+    test('answerIncomingCall with permission denied never hits the backend', () async {
+      stubAnswerSuccess();
+      final controller = build(permission: false);
+      await expectLater(
+        controller.answerIncomingCall(callId: 'call-1'),
+        throwsA(isA<PermissionDeniedException>()),
+      );
+      expect(controller.state.value, CallState.failed);
+      verifyNever(() =>
+          backend.answerOutboundCall(any(), correlationId: any(named: 'correlationId')),);
+      expect(platform.calls, isEmpty);
+    });
+
+    test('answerIncomingCall surfaces a no-longer-ringing (410) failure', () async {
+      when(() => backend.answerOutboundCall(any(), correlationId: any(named: 'correlationId')))
+          .thenThrow(const InvalidRequestException(
+              'CALL_NO_LONGER_RINGING', 'gone', httpStatus: 410,),);
+      final controller = build();
+      await expectLater(
+        controller.answerIncomingCall(callId: 'call-1'),
+        throwsA(isA<InvalidRequestException>()),
+      );
+      expect(controller.state.value, CallState.failed);
+      expect(platform.calls, isEmpty);
+    });
+
+    test('declineIncomingCall dismisses the ring UI and tells the backend', () async {
+      stubAnswerSuccess();
+      final controller = build();
+      await controller.declineIncomingCall('call-1');
+      expect(platform.calls, contains('dismissIncoming'));
+      verify(() => backend.declineOutboundCall('call-1',
+          correlationId: any(named: 'correlationId'),),).called(1);
+    });
+
+    test('reportIncomingCall is forwarded to the platform', () async {
+      final controller = build();
+      await controller.reportIncomingCall(callId: 'call-9', displayName: 'Acme');
+      expect(platform.calls, contains('reportIncoming:call-9'));
+    });
+
+    test('handlePendingIncomingCall answers a parked cold-start call', () async {
+      stubAnswerSuccess();
+      platform.pendingIncomingCall = {'callId': 'call-7', 'isVideo': false};
+      final controller = build();
+
+      final handled = await controller.handlePendingIncomingCall();
+
+      expect(handled, isTrue);
+      verify(() => backend.answerOutboundCall('call-7',
+          correlationId: any(named: 'correlationId'),),).called(1);
+      expect(platform.calls, contains('joinIncoming:contact-1'));
+    });
+
+    test('handlePendingIncomingCall returns false when nothing is parked', () async {
+      final controller = build();
+      await expectLater(controller.handlePendingIncomingCall(), completion(isFalse));
+      expect(platform.calls, isEmpty);
+    });
+
+    test('cannot answer while another call is active', () async {
+      stubStartSuccess();
+      stubAnswerSuccess();
+      final controller = build();
+      await controller.startCall(_request());
+      await expectLater(
+        controller.answerIncomingCall(callId: 'call-1'),
+        throwsA(isA<StateError>()),
+      );
+    });
   });
 
   group('sendDtmf (IVR keypad)', () {

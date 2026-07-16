@@ -8,12 +8,18 @@ import UIKit
 public class ConnectWebrtcPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, ChimeEventEmitter {
     private var eventSink: FlutterEventSink?
     private var callManager: ChimeCallManager!
-    private var callKitManager: ConnectCallKitManager?
+    private let callKitManager = ConnectCallKitManager.shared
     private var usingCallKit = false
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = ConnectWebrtcPlugin()
         instance.callManager = ChimeCallManager(emitter: instance)
+        // Bind the shared CallKit singleton (which the host's PushKit delegate may already have
+        // used to show an incoming call) to this engine's media manager and event bridge.
+        ConnectCallKitManager.shared.chime = instance.callManager
+        ConnectCallKitManager.shared.eventListener = { [weak instance] event in
+            instance?.emit(event)
+        }
 
         let methods = FlutterMethodChannel(
             name: "com.chimeflutter.connect_webrtc/methods",
@@ -37,22 +43,23 @@ public class ConnectWebrtcPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
             let callKitEnabled = (args["callKitEnabled"] as? Bool) ?? false
             let displayName = (args["callDisplayName"] as? String) ?? "Support"
             let isVideo = (args["callType"] as? String) == "video"
+            let asIncoming = (args["asIncoming"] as? Bool) ?? false
             do {
-                // Builds the media session; with CallKit, audio starts later in didActivate.
-                try callManager.join(sessionMap: args, callKitEnabled: callKitEnabled)
-                usingCallKit = callKitEnabled
-                if callKitEnabled {
-                    let manager = callKitManager ?? ConnectCallKitManager(chime: callManager)
-                    callKitManager = manager
-                    manager.startOutgoingCall(displayName: displayName, isVideo: isVideo)
+                // Builds the media session; with CallKit, audio starts later in didActivate (or
+                // immediately for an answered incoming call whose didActivate already fired).
+                try callManager.join(sessionMap: args, callKitEnabled: callKitEnabled || asIncoming)
+                usingCallKit = callKitEnabled || asIncoming
+                if callKitEnabled && !asIncoming {
+                    callKitManager.startOutgoingCall(displayName: displayName, isVideo: isVideo)
                 }
+                // asIncoming: CallKit is already showing the answered call from reportIncomingCall.
                 result(nil)
             } catch {
                 result(mapError(error))
             }
         case "leave":
             if usingCallKit {
-                callKitManager?.requestEnd() // triggers CXEndCallAction → callManager.leave()
+                callKitManager.requestEnd() // triggers CXEndCallAction → callManager.leave()
             } else {
                 callManager.leave()
             }
@@ -60,7 +67,7 @@ public class ConnectWebrtcPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         case "setMuted":
             let muted = (args?["muted"] as? Bool) ?? false
             if usingCallKit {
-                callKitManager?.requestMuted(muted) // CXSetMutedCallAction keeps system UI in sync
+                callKitManager.requestMuted(muted) // CXSetMutedCallAction keeps system UI in sync
                 result(true)
             } else {
                 result(callManager.setMuted(muted))
@@ -78,6 +85,25 @@ public class ConnectWebrtcPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         case "setSpeakerphoneEnabled":
             callManager.setSpeakerphone((args?["enabled"] as? Bool) ?? false)
             result(nil)
+        case "reportIncomingCall":
+            // Dart-side push delivery. NOTE: on iOS, VoIP pushes normally arrive in the HOST app's
+            // PushKit delegate, which must call ConnectCallKitManager.shared.reportIncomingCall
+            // directly (Apple requires it synchronously); this method covers in-app signalling.
+            guard let args = args, let callId = args["callId"] as? String else {
+                result(invalidArgs()); return
+            }
+            usingCallKit = true
+            callKitManager.reportIncomingCall(
+                callId: callId,
+                displayName: (args["displayName"] as? String) ?? "Support",
+                isVideo: (args["isVideo"] as? Bool) ?? false,
+                timeoutSeconds: (args["timeoutSeconds"] as? Int) ?? 45)
+            result(nil)
+        case "dismissIncomingCall":
+            callKitManager.dismissIncomingCall()
+            result(nil)
+        case "getPendingIncomingCall":
+            result(callKitManager.consumePendingAnsweredCall())
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -105,8 +131,8 @@ public class ConnectWebrtcPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
                let type = event["type"] as? String, type == "stateChanged",
                let state = event["state"] as? String {
                 switch state {
-                case "connected": self.callKitManager?.reportConnected()
-                case "disconnected", "failed": self.callKitManager?.reportRemoteEnded()
+                case "connected": self.callKitManager.reportConnected()
+                case "disconnected", "failed": self.callKitManager.reportRemoteEnded()
                 default: break
                 }
             }

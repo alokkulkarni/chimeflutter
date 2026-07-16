@@ -173,6 +173,42 @@ export class BackendClient {
     if (res.status !== 200) throw await this.toError(res);
   }
 
+  /** `POST /devices` — registers (upserts) this device's push token so the contact center can
+   *  place simulated-outbound calls to it. `platform` is 'iOS' or 'Android'; `pushToken` is the
+   *  APNs **VoIP** token (iOS) or the FCM registration token (Android). */
+  async registerDevice(customerId: string, platform: 'iOS' | 'Android', pushToken: string): Promise<void> {
+    const res = await this.request('POST', '/devices', { customerId, platform, pushToken });
+    if (res.status !== 200 && res.status !== 201) throw await this.toError(res);
+  }
+
+  /** `POST /calls/outbound/{callId}/answer` — exchanges the callId from an incoming-call push for
+   *  the full join credentials. Idempotent on retry; a 410 means the call stopped ringing
+   *  (declined elsewhere, cancelled, or timed out). */
+  async answerOutboundCall(callId: string, correlationId?: string): Promise<CallSession> {
+    const res = await this.request(
+      'POST',
+      `/calls/outbound/${encodeURIComponent(callId)}/answer`,
+      undefined,
+      undefined,
+      correlationId,
+    );
+    if (res.status !== 200) throw await this.toError(res);
+    return (await res.json()) as CallSession;
+  }
+
+  /** `POST /calls/outbound/{callId}/decline` — declines a ringing simulated-outbound call so the
+   *  waiting agent is released immediately. */
+  async declineOutboundCall(callId: string, correlationId?: string): Promise<void> {
+    const res = await this.request(
+      'POST',
+      `/calls/outbound/${encodeURIComponent(callId)}/decline`,
+      undefined,
+      undefined,
+      correlationId,
+    );
+    if (res.status !== 204 && res.status !== 200) throw await this.toError(res);
+  }
+
   /** `DELETE /calls/{contactId}` — ends the contact server-side. Best-effort. */
   async endCall(contactId: string, correlationId?: string): Promise<void> {
     const res = await this.request(

@@ -7,6 +7,7 @@ import {
   CallRequest,
   CallSession,
   CallState,
+  CallType,
   ConnectWebRtcConfig,
   TERMINAL_STATES,
   TokenProvider,
@@ -125,6 +126,71 @@ export class ConnectWebRtcController {
       this.setState('failed');
       throw toMediaError(e);
     }
+  }
+
+  /** Shows the OS incoming-call UI for a simulated-outbound push received on the JS side
+   *  (Android FCM). On iOS the host app's PushKit delegate must report the call natively —
+   *  see docs/OUTBOUND_CALLS.md. */
+  reportIncomingCall(
+    callId: string,
+    displayName: string,
+    isVideo = false,
+    timeoutSeconds = 45,
+  ): Promise<void> {
+    return this.bridge.reportIncomingCall(callId, displayName, isVideo, timeoutSeconds);
+  }
+
+  /** Answers a ringing simulated-outbound call: verify permissions → exchange the callId for the
+   *  join credentials (`POST /calls/outbound/{callId}/answer`) → attach the media to the call the
+   *  OS is already showing. Call this from your `incomingCallAnswered` event handler. */
+  async answerIncomingCall(callId: string, callType: CallType = 'audio'): Promise<void> {
+    if (this.isInCall) throw new Error('A call is already in progress');
+    this.setState('connecting');
+
+    const granted = await this.bridge.ensurePermissions(callType);
+    if (!granted) {
+      this.setState('failed');
+      throw new PermissionDeniedError();
+    }
+
+    let session: CallSession;
+    try {
+      session = await this.backend.answerOutboundCall(callId, newCorrelationId());
+    } catch (e) {
+      this.setState('failed');
+      throw e;
+    }
+
+    this.session = session;
+    try {
+      await this.bridge.join(
+        session,
+        this.config.callKitEnabled ?? false,
+        this.config.callDisplayName ?? 'Support',
+        true,
+      );
+      // `connected` arrives asynchronously via the native `stateChanged` event.
+    } catch (e) {
+      this.setState('failed');
+      throw toMediaError(e);
+    }
+  }
+
+  /** Declines a ringing simulated-outbound call: dismisses the ring UI (best-effort) and tells the
+   *  backend to stop the contact so the waiting agent is released immediately. */
+  async declineIncomingCall(callId: string): Promise<void> {
+    await this.bridge.dismissIncomingCall().catch(() => undefined);
+    await this.backend.declineOutboundCall(callId, newCorrelationId());
+  }
+
+  /** Cold-start recovery: when the user answered the OS ring UI before the JS bundle was running,
+   *  the native side parks the answer. Call once at startup; answers the parked call and returns
+   *  true, or returns false when nothing is pending. */
+  async handlePendingIncomingCall(): Promise<boolean> {
+    const pending = await this.bridge.getPendingIncomingCall();
+    if (!pending?.callId) return false;
+    await this.answerIncomingCall(pending.callId, pending.isVideo ? 'video' : 'audio');
+    return true;
   }
 
   async endCall(): Promise<void> {

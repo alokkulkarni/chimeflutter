@@ -44,6 +44,15 @@ sealed class CallEvent {
           message: (map['message'] as String?) ?? '',
           fatal: (map['fatal'] as bool?) ?? false,
         );
+      case 'incomingCallAnswered':
+        return IncomingCallAnswered(
+          callId: map['callId'] as String,
+          isVideo: (map['isVideo'] as bool?) ?? false,
+        );
+      case 'incomingCallDeclined':
+        return IncomingCallDeclined(callId: map['callId'] as String);
+      case 'incomingCallMissed':
+        return IncomingCallMissed(callId: map['callId'] as String);
       default:
         return null;
     }
@@ -98,4 +107,30 @@ class CallErrorEvent extends CallEvent {
   final String code;
   final String message;
   final bool fatal;
+}
+
+/// The user answered a **simulated-outbound** (agent-initiated) call on the OS ring UI
+/// (CallKit / the Android call notification). The app should now call
+/// `ConnectWebRtcController.answerIncomingCall(callId: callId)` to fetch the join credentials
+/// and connect the media.
+class IncomingCallAnswered extends CallEvent {
+  const IncomingCallAnswered({required this.callId, this.isVideo = false});
+
+  /// The backend's outbound callId (from the push payload — NOT a Connect contactId).
+  final String callId;
+  final bool isVideo;
+}
+
+/// The user declined the incoming call on the OS ring UI. The app should call
+/// `ConnectWebRtcController.declineIncomingCall(callId)` so the agent is released immediately
+/// (otherwise the server-side ring timeout releases them).
+class IncomingCallDeclined extends CallEvent {
+  const IncomingCallDeclined({required this.callId});
+  final String callId;
+}
+
+/// The incoming-call ring UI timed out unanswered on this device.
+class IncomingCallMissed extends CallEvent {
+  const IncomingCallMissed({required this.callId});
+  final String callId;
 }

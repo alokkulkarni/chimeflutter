@@ -26,5 +26,10 @@
             android:name=".CallForegroundService"
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone" />
+
+        <!-- Answer/Decline actions of the incoming-call (simulated outbound) notification. -->
+        <receiver
+            android:name=".IncomingCallActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

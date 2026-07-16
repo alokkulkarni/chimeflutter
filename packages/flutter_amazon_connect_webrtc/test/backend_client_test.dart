@@ -144,4 +144,60 @@ void main() {
       throwsA(isA<BackendException>()),
     );
   });
+
+  test('registerDevice posts the push token to /v1/devices', () async {
+    late http.Request captured;
+    final mock = MockClient((req) async {
+      captured = req;
+      return http.Response(jsonEncode({'customerId': 'cust-1', 'platform': 'iOS'}), 200);
+    });
+    await _client(mock).registerDevice(
+      customerId: 'cust-1',
+      platform: 'iOS',
+      pushToken: 'voip-token',
+    );
+    expect(captured.method, 'POST');
+    expect(captured.url.toString(), 'https://api.test/v1/devices');
+    expect(jsonDecode(captured.body), {
+      'customerId': 'cust-1',
+      'platform': 'iOS',
+      'pushToken': 'voip-token',
+    });
+    expect(captured.headers['Authorization'], 'Bearer jwt-token');
+  });
+
+  test('answerOutboundCall exchanges the callId for a CallSession', () async {
+    late http.Request captured;
+    final mock = MockClient((req) async {
+      captured = req;
+      return http.Response(jsonEncode(_okBody), 200);
+    });
+    final session = await _client(mock).answerOutboundCall('call-1');
+    expect(captured.method, 'POST');
+    expect(captured.url.toString(), 'https://api.test/v1/calls/outbound/call-1/answer');
+    expect(session.contactId, 'c-1');
+    expect(session.attendee.joinToken, 'jt-1');
+  });
+
+  test('answerOutboundCall surfaces 410 (no longer ringing) as InvalidRequestException', () async {
+    final mock = MockClient((req) async => http.Response(
+        jsonEncode({'error': {'code': 'CALL_NO_LONGER_RINGING', 'message': 'gone'}}), 410,),);
+    await expectLater(
+      _client(mock).answerOutboundCall('call-1'),
+      throwsA(
+        isA<InvalidRequestException>().having((e) => e.code, 'code', 'CALL_NO_LONGER_RINGING'),
+      ),
+    );
+  });
+
+  test('declineOutboundCall posts to .../decline and accepts 204', () async {
+    late http.Request captured;
+    final mock = MockClient((req) async {
+      captured = req;
+      return http.Response('', 204);
+    });
+    await _client(mock).declineOutboundCall('call-2');
+    expect(captured.method, 'POST');
+    expect(captured.url.toString(), 'https://api.test/v1/calls/outbound/call-2/decline');
+  });
 }

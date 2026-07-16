@@ -7,7 +7,14 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 
-export type RouteKey = 'health' | 'startCall' | 'endCall' | 'participant';
+export type RouteKey =
+  | 'health'
+  | 'startCall'
+  | 'endCall'
+  | 'participant'
+  | 'registerDevice'
+  | 'startOutboundCall'
+  | 'outboundCallAction';
 
 export interface ResolvedRoute {
   key: RouteKey;
@@ -30,6 +37,16 @@ export function resolveRoute(method: string, pathname: string): ResolvedRoute | 
   if (m === 'POST' && path === '/calls') return { key: 'startCall' };
   if (m === 'POST' && (path === '/calls/connections' || path === '/calls/dtmf')) {
     return { key: 'participant' };
+  }
+  if (m === 'POST' && path === '/devices') return { key: 'registerDevice' };
+  if (m === 'POST' && path === '/calls/outbound') return { key: 'startOutboundCall' };
+  {
+    const match = /^\/calls\/outbound\/([^/]+?)(\/answer|\/decline)?$/.exec(path);
+    if (match) {
+      const callId = decodeURIComponent(match[1]!);
+      if (m === 'GET' && !match[2]) return { key: 'outboundCallAction', pathParameters: { callId } };
+      if (m === 'POST' && match[2]) return { key: 'outboundCallAction', pathParameters: { callId } };
+    }
   }
   if (m === 'DELETE') {
     const match = /^\/calls\/([^/]+)$/.exec(path);

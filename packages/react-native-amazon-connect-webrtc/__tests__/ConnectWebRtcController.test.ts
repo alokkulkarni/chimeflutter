@@ -35,8 +35,8 @@ function makeBridge(overrides: Partial<NativeBridge> = {}) {
   const calls: string[] = [];
   const bridge: NativeBridge = {
     ensurePermissions: async () => true,
-    join: async () => {
-      calls.push('join');
+    join: async (_session, _callKit, _name, asIncoming) => {
+      calls.push(asIncoming ? 'joinIncoming' : 'join');
     },
     leave: async () => {
       calls.push('leave');
@@ -54,6 +54,13 @@ function makeBridge(overrides: Partial<NativeBridge> = {}) {
     setSpeakerphoneEnabled: async (e) => {
       calls.push(`setSpeakerphoneEnabled:${e}`);
     },
+    reportIncomingCall: async (callId) => {
+      calls.push(`reportIncoming:${callId}`);
+    },
+    dismissIncomingCall: async () => {
+      calls.push('dismissIncoming');
+    },
+    getPendingIncomingCall: async () => null,
     addEventListener: (listener) => {
       emit = listener;
       return () => undefined;
@@ -298,5 +305,113 @@ describe('controls pass through to the native bridge', () => {
       'switchCamera',
       'setSpeakerphoneEnabled:true',
     ]);
+  });
+});
+
+describe('simulated outbound (incoming calls)', () => {
+  const outboundBackend = () =>
+    makeBackend((url) => {
+      if (url.endsWith('/answer')) {
+        return new Response(JSON.stringify(SESSION), { status: 200 });
+      }
+      if (url.endsWith('/decline')) {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'no' } }), {
+        status: 404,
+      });
+    });
+
+  it('answerIncomingCall exchanges the callId and joins asIncoming', async () => {
+    const { bridge, calls, pushEvent } = makeBridge();
+    const controller = makeController(bridge, outboundBackend());
+    const states: CallState[] = [];
+    controller.onStateChanged((s) => states.push(s));
+
+    await controller.answerIncomingCall('call-1');
+
+    expect(states).toEqual(['connecting']);
+    expect(calls).toEqual(['joinIncoming']);
+    expect(controller.getSession()?.contactId).toBe('contact-1');
+
+    pushEvent({ type: 'stateChanged', state: 'connected' });
+    expect(controller.getState()).toBe('connected');
+  });
+
+  it('answerIncomingCall with denied permissions never hits the backend', async () => {
+    const { bridge, calls } = makeBridge({ ensurePermissions: async () => false });
+    const controller = makeController(bridge, outboundBackend());
+    await expect(controller.answerIncomingCall('call-1')).rejects.toBeInstanceOf(
+      PermissionDeniedError,
+    );
+    expect(controller.getState()).toBe('failed');
+    expect(calls).toEqual([]);
+  });
+
+  it('answerIncomingCall surfaces a 410 (no longer ringing) and fails the state', async () => {
+    const gone = makeBackend(
+      () =>
+        new Response(
+          JSON.stringify({ error: { code: 'CALL_NO_LONGER_RINGING', message: 'gone' } }),
+          { status: 410 },
+        ),
+    );
+    const { bridge } = makeBridge();
+    const controller = makeController(bridge, gone);
+    await expect(controller.answerIncomingCall('call-1')).rejects.toMatchObject({
+      code: 'CALL_NO_LONGER_RINGING',
+    });
+    expect(controller.getState()).toBe('failed');
+  });
+
+  it('declineIncomingCall dismisses the ring UI and tells the backend', async () => {
+    let declined = false;
+    const backend = makeBackend((url) => {
+      if (url.endsWith('/decline')) {
+        declined = true;
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    });
+    const { bridge, calls } = makeBridge();
+    const controller = makeController(bridge, backend);
+
+    await controller.declineIncomingCall('call-1');
+
+    expect(calls).toEqual(['dismissIncoming']);
+    expect(declined).toBe(true);
+  });
+
+  it('reportIncomingCall is forwarded to the native bridge', async () => {
+    const { bridge, calls } = makeBridge();
+    const controller = makeController(bridge, outboundBackend());
+    await controller.reportIncomingCall('call-9', 'Acme Support', true, 30);
+    expect(calls).toEqual(['reportIncoming:call-9']);
+  });
+
+  it('handlePendingIncomingCall answers a parked cold-start call', async () => {
+    const { bridge, calls } = makeBridge({
+      getPendingIncomingCall: async () => ({ callId: 'call-7', isVideo: false }),
+    });
+    const controller = makeController(bridge, outboundBackend());
+
+    await expect(controller.handlePendingIncomingCall()).resolves.toBe(true);
+    expect(calls).toEqual(['joinIncoming']);
+  });
+
+  it('handlePendingIncomingCall is a no-op when nothing is parked', async () => {
+    const { bridge, calls } = makeBridge();
+    const controller = makeController(bridge, outboundBackend());
+    await expect(controller.handlePendingIncomingCall()).resolves.toBe(false);
+    expect(calls).toEqual([]);
+  });
+
+  it('cannot answer while another call is active', async () => {
+    const { bridge } = makeBridge();
+    const controller = makeController(bridge);
+    await controller.startCall(REQUEST);
+    await expect(controller.answerIncomingCall('call-1')).rejects.toThrow(
+      'A call is already in progress',
+    );
   });
 });
