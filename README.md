@@ -10,6 +10,12 @@ The customer's context (who they are, what they were doing, device details) is p
 Connect as **contact attributes**, so the contact flow routes the customer to the **right queue /
 agent**. An in‑call **DTMF keypad** drives IVR menus via the Connect Participant Service.
 
+Calls work in **both directions**: customers dial out of the app, and **agents can ring the app**
+("simulated outbound" — Connect has no native outbound‑WebRTC, so the backend starts the contact
+on the customer's behalf, parks it on the agent's personal queue, and wakes the device with an
+APNs VoIP / FCM push into the OS incoming‑call UI). See
+[docs/OUTBOUND_CALLS.md](./docs/OUTBOUND_CALLS.md).
+
 ```
 ┌──────────────┐  HTTPS (Bearer     ┌─────────────┐   StartWebRTCContact   ┌──────────────────┐
 │ iOS / Android│   optional — bring │ API Gateway │ ─────────────────────▶ │  Amazon Connect  │
@@ -26,14 +32,14 @@ agent**. An in‑call **DTMF keypad** drives IVR menus via the Connect Participa
 | Path | Purpose |
 |------|---------|
 | [`specs/`](./specs) | Spec‑driven development artefacts: requirements, architecture, **API & channel contracts** (the single source of truth shared by every codebase), sequences, security, test strategy. |
-| [`backend/`](./backend) | The shared backend ([full reference](./docs/BACKEND.md)): API Gateway (HTTP API) + Lambdas — start/end call (`StartWebRTCContact`/`StopContact`), participant connection + **DTMF**, health. Least‑privilege IAM, attribute allow‑listing, bring‑your‑own auth. Deploys via **SAM or Docker** (identical handlers; role‑based AWS access in containers). TypeScript, 85 Jest tests. |
-| [`packages/flutter_amazon_connect_webrtc/`](./packages/flutter_amazon_connect_webrtc) | The **Flutter plugin**. Dart API + iOS (Swift/Chime SDK/CallKit) + Android (Kotlin/Chime SDK/Telecom) implementations. 34 Dart tests. |
+| [`backend/`](./backend) | The shared backend ([full reference](./docs/BACKEND.md)): API Gateway (HTTP API) + Lambdas — start/end call (`StartWebRTCContact`/`StopContact`), participant connection + **DTMF**, **simulated‑outbound** (device registry, agent‑availability gate, push via SNS, answer/decline, ring‑timeout sweeper), health. Least‑privilege IAM, attribute allow‑listing, bring‑your‑own auth. Deploys via **SAM or Docker** (identical handlers; role‑based AWS access in containers). TypeScript, 127 Jest tests. |
+| [`packages/flutter_amazon_connect_webrtc/`](./packages/flutter_amazon_connect_webrtc) | The **Flutter plugin**. Dart API + iOS (Swift/Chime SDK/CallKit) + Android (Kotlin/Chime SDK/Telecom) implementations, incl. incoming‑call (simulated outbound) support. 46 Dart tests. |
 | [`packages/flutter_amazon_connect_webrtc/example/`](./packages/flutter_amazon_connect_webrtc/example) | A pure‑Flutter example app that exercises the plugin end‑to‑end. |
-| [`packages/react-native-amazon-connect-webrtc/`](./packages/react-native-amazon-connect-webrtc) | The **React Native library** — same backend, same contract, native managers ported verbatim from the device‑verified Flutter plugin. Prebuilt call screen, brownfield (existing‑native‑app) embedding, zero runtime npm deps, 26 Jest tests, `npm audit` clean. |
+| [`packages/react-native-amazon-connect-webrtc/`](./packages/react-native-amazon-connect-webrtc) | The **React Native library** — same backend, same contract, native managers ported verbatim from the device‑verified Flutter plugin. Prebuilt call screen, brownfield (existing‑native‑app) embedding, incoming‑call support, zero runtime npm deps, 48 Jest tests, `npm audit` clean. |
 | [`native/flutter_call_module/`](./native/flutter_call_module) | The Flutter **add‑to‑app module**: complete call UI (chooser or auto‑dial via `enabledCallTypes`, DTMF keypad, video tiles) + the host platform‑channel bridge. |
 | [`native/ios-host/`](./native/ios-host) | A **native SwiftUI** iOS app embedding the Flutter module add‑to‑app, with CallKit, green return‑to‑call bar, sheet‑minimize. |
 | [`native/android-host/`](./native/android-host) | A **native Kotlin** Android app embedding the module as **AARs**, with Telecom, return‑to‑call banner, back‑gesture minimize. |
-| [`docs/`](./docs) | Guides. Flutter: [getting started](./docs/GETTING_STARTED.md) · [integration](./docs/INTEGRATION.md) · [publishing](./docs/PUBLISHING.md). React Native: [getting started](./docs/react-native/GETTING_STARTED.md) · [integration](./docs/react-native/INTEGRATION.md) · [publishing](./docs/react-native/PUBLISHING.md). Plus the **[backend reference](./docs/BACKEND.md)** (architecture, endpoints, IAM, SAM & Docker runbooks), the **[accessibility conformance statement](./docs/ACCESSIBILITY.md)** (automated a11y assessments pass 100% in both libraries), the [deployment runbook](./docs/DEPLOYMENT.md), [system call UI](./docs/SYSTEM_CALL_UI.md) and an importable [Connect flow](./docs/connect). |
+| [`docs/`](./docs) | Guides. Flutter: [getting started](./docs/GETTING_STARTED.md) · [integration](./docs/INTEGRATION.md) · [publishing](./docs/PUBLISHING.md). React Native: [getting started](./docs/react-native/GETTING_STARTED.md) · [integration](./docs/react-native/INTEGRATION.md) · [publishing](./docs/react-native/PUBLISHING.md). Plus **[agent‑initiated (simulated outbound) calls](./docs/OUTBOUND_CALLS.md)**, the **[backend reference](./docs/BACKEND.md)** (architecture, endpoints, IAM, SAM & Docker runbooks), the **[accessibility conformance statement](./docs/ACCESSIBILITY.md)** (automated a11y assessments pass 100% in both libraries), the [deployment runbook](./docs/DEPLOYMENT.md), [system call UI](./docs/SYSTEM_CALL_UI.md) and importable [Connect flows](./docs/connect) (inbound routing + outbound‑to‑agent). |
 
 ## Design principles
 
@@ -64,7 +70,7 @@ In short:
 
 ```bash
 # 1. Backend (shared by both libraries) — serverless…
-cd backend && npm ci && npm test                # 85 tests
+cd backend && npm ci && npm test                # 127 tests
 sam build && sam deploy --guided                 # → note the ApiBaseUrl output
 #    …or the same handlers as a Docker container (role-based AWS creds — docs/BACKEND.md §7):
 docker build -t chimeflutter-backend . && docker run -p 8080:8080 \
@@ -88,12 +94,16 @@ cd packages/react-native-amazon-connect-webrtc && npm ci && npm test && npm audi
 The Flutter path is **verified end‑to‑end on physical devices**: real VoIP calls placed from an
 iPhone into Amazon Connect (CallKit call UI, queue routing by attributes, DTMF into an IVR,
 speaker routing, minimize‑and‑browse), with the Android host building and consuming the same
-feature set. The backend is deployed and live‑tested (85 Jest tests + smoke tests against the real
-Connect instance), and its **Docker deployment is verified** too — the container hosts the
+feature set. The backend is deployed and live‑tested (127 Jest tests + smoke tests against the
+real Connect instance), and its **Docker deployment is verified** too — the container hosts the
 identical Lambda handlers (image built and smoke‑tested locally; role‑based AWS credentials at
 runtime, see [docs/BACKEND.md](./docs/BACKEND.md)). The React Native library shares the same contract and verbatim‑ported native
-managers, with a fully tested TypeScript core (26 tests, `npm audit` 0 vulnerabilities); compiling
+managers, with a fully tested TypeScript core (48 tests, `npm audit` 0 vulnerabilities); compiling
 its native modules requires embedding in an RN host app — the release checklist in
 [docs/react-native/PUBLISHING.md](./docs/react-native/PUBLISHING.md) gates on that device smoke
-test. See [`specs/006-test-strategy.md`](./specs/006-test-strategy.md) for exactly what is
-unit‑tested, contract‑tested, and device‑verified.
+test. **Simulated‑outbound (agent‑initiated) calling** is implemented and unit‑tested across the
+backend and both libraries, and both native sides compile (Android AAR build, iOS host build);
+device verification of the incoming‑call path additionally needs your push credentials (APNs VoIP
+key / Firebase project) wired per [docs/OUTBOUND_CALLS.md](./docs/OUTBOUND_CALLS.md). See
+[`specs/006-test-strategy.md`](./specs/006-test-strategy.md) for exactly what is unit‑tested,
+contract‑tested, and device‑verified.

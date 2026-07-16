@@ -29,6 +29,23 @@ describe('resolveRoute', () => {
     expect(resolveRoute('DELETE', '/calls/a%2Fb')?.pathParameters).toEqual({ contactId: 'a/b' });
   });
 
+  it('maps the simulated-outbound routes', () => {
+    expect(resolveRoute('POST', '/v1/devices')?.key).toBe('registerDevice');
+    expect(resolveRoute('POST', '/v1/calls/outbound')?.key).toBe('startOutboundCall');
+    expect(resolveRoute('GET', '/v1/calls/outbound/call-1')).toEqual({
+      key: 'outboundCallAction',
+      pathParameters: { callId: 'call-1' },
+    });
+    expect(resolveRoute('POST', '/v1/calls/outbound/call-1/answer')).toEqual({
+      key: 'outboundCallAction',
+      pathParameters: { callId: 'call-1' },
+    });
+    expect(resolveRoute('POST', '/calls/outbound/call-1/decline')).toEqual({
+      key: 'outboundCallAction',
+      pathParameters: { callId: 'call-1' },
+    });
+  });
+
   it('returns null for unknown routes and wrong methods', () => {
     expect(resolveRoute('GET', '/v1/calls')).toBeNull();
     expect(resolveRoute('PUT', '/v1/calls')).toBeNull();
@@ -36,6 +53,11 @@ describe('resolveRoute', () => {
     expect(resolveRoute('DELETE', '/v1/calls')).toBeNull();
     expect(resolveRoute('DELETE', '/v1/calls/a/b')).toBeNull();
     expect(resolveRoute('GET', '/')).toBeNull();
+    // outbound: wrong method / missing action segment
+    expect(resolveRoute('GET', '/v1/calls/outbound')).toBeNull();
+    expect(resolveRoute('POST', '/v1/calls/outbound/call-1')).toBeNull();
+    expect(resolveRoute('GET', '/v1/calls/outbound/call-1/answer')).toBeNull();
+    expect(resolveRoute('POST', '/v1/calls/outbound/call-1/ring')).toBeNull();
   });
 });
 

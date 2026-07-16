@@ -138,6 +138,54 @@ class BackendClient {
     if (res.statusCode != 200) throw _toException(res);
   }
 
+  /// `POST /devices` — registers (upserts) this device's push token so the contact center can
+  /// place simulated-outbound calls to it. [platform] is `'iOS'` or `'Android'`; [pushToken] is
+  /// the APNs **VoIP** token (iOS) or the FCM registration token (Android).
+  Future<void> registerDevice({
+    required String customerId,
+    required String platform,
+    required String pushToken,
+  }) async {
+    final res = await _http
+        .post(
+          _resolve('/devices'),
+          headers: await _headers(),
+          body: jsonEncode({
+            'customerId': customerId,
+            'platform': platform,
+            'pushToken': pushToken,
+          }),
+        )
+        .timeout(timeout);
+    if (res.statusCode != 200 && res.statusCode != 201) throw _toException(res);
+  }
+
+  /// `POST /calls/outbound/{callId}/answer` — exchanges the callId from an incoming-call push for
+  /// the full join credentials. Idempotent on retry. Throws with HTTP 410 semantics when the call
+  /// stopped ringing (declined elsewhere, cancelled, or timed out).
+  Future<CallSession> answerOutboundCall(String callId, {String? correlationId}) async {
+    final res = await _http
+        .post(
+          _resolve('/calls/outbound/${Uri.encodeComponent(callId)}/answer'),
+          headers: await _headers(correlationId: correlationId),
+        )
+        .timeout(timeout);
+    if (res.statusCode != 200) throw _toException(res);
+    return CallSession.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// `POST /calls/outbound/{callId}/decline` — declines a ringing simulated-outbound call so the
+  /// waiting agent is released immediately.
+  Future<void> declineOutboundCall(String callId, {String? correlationId}) async {
+    final res = await _http
+        .post(
+          _resolve('/calls/outbound/${Uri.encodeComponent(callId)}/decline'),
+          headers: await _headers(correlationId: correlationId),
+        )
+        .timeout(timeout);
+    if (res.statusCode != 204 && res.statusCode != 200) throw _toException(res);
+  }
+
   /// `DELETE /calls/{contactId}` — ends the contact server-side. Best-effort; a failure here does
   /// not stop the local media session from tearing down.
   Future<void> endCall(String contactId, {String? correlationId}) async {

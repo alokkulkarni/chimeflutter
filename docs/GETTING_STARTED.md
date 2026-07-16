@@ -648,7 +648,33 @@ builds, put real values in `HostConfig` (or wire your own remote config).
   [`docs/PUBLISHING.md`](./PUBLISHING.md).
 - Rotate/regenerate any endpoint you ever committed or shared while testing.
 
+---
+
+## 12. Receiving calls — agent-initiated ("simulated outbound")
+
+Everything above is the customer dialing **out**. The libraries can also receive calls the
+**agent initiates**: the backend starts the contact on the customer's behalf, routes it straight
+to that agent's personal queue (occupying their voice slot so they get no other calls while your
+phone rings), and wakes the device with an APNs **VoIP** push (iOS) / high-priority **FCM** data
+push (Android). The app shows the OS incoming-call UI and, on answer, joins over the exact same
+media path.
+
+The Dart surface is small:
+
+```dart
+await backend.registerDevice(customerId: ..., platform: ..., pushToken: ...); // once, after sign-in
+controller.events.listen((e) { /* IncomingCallAnswered → controller.answerIncomingCall(...) */ });
+await controller.handlePendingIncomingCall(); // cold start: user answered before Flutter ran
+```
+
+The one-time setup (SNS platform applications, the outbound contact flow import, PushKit wiring in
+the iOS host, a FirebaseMessagingService on Android) is a step-by-step guide of its own:
+**[OUTBOUND_CALLS.md](./OUTBOUND_CALLS.md)**.
+
+---
+
 **Deeper dives:** [`INTEGRATION.md`](./INTEGRATION.md) (concepts) ·
+[`OUTBOUND_CALLS.md`](./OUTBOUND_CALLS.md) (agent-initiated calls into the app) ·
 [`DEPLOYMENT.md`](./DEPLOYMENT.md) (backend runbook) · [`PUBLISHING.md`](./PUBLISHING.md)
 (publishing the library + full integrator reference) ·
 [`SYSTEM_CALL_UI.md`](./SYSTEM_CALL_UI.md) (CallKit/Telecom details) ·

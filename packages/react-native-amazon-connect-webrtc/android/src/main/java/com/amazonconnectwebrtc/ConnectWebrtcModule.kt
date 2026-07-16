@@ -43,6 +43,15 @@ class ConnectWebrtcModule(private val reactContext: ReactApplicationContext) :
 
     init {
         ChimeSessionHolder.callManager = callManager
+        // Forward incoming-call (simulated outbound) answer/decline events to JS + host listeners.
+        // Anything that fired before this point (cold start) is parked and drained via
+        // getPendingIncomingCall.
+        ConnectIncomingCallCenter.listener = { event -> emit(event) }
+    }
+
+    override fun invalidate() {
+        ConnectIncomingCallCenter.listener = null
+        super.invalidate()
     }
 
     override fun getName(): String = NAME
@@ -108,6 +117,35 @@ class ConnectWebrtcModule(private val reactContext: ReactApplicationContext) :
     fun setSpeakerphoneEnabled(enabled: Boolean, promise: Promise) {
         callManager.setSpeakerphone(enabled)
         promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun reportIncomingCall(args: ReadableMap, promise: Promise) {
+        val callId = args.getString("callId")
+        if (callId.isNullOrEmpty()) {
+            promise.reject("sdkError", "reportIncomingCall requires a callId", null)
+            return
+        }
+        ConnectIncomingCallCenter.reportIncomingCall(
+            context = reactContext.applicationContext,
+            callId = callId,
+            displayName = args.getString("displayName") ?: "Support",
+            isVideo = if (args.hasKey("isVideo")) args.getBoolean("isVideo") else false,
+            timeoutSeconds = if (args.hasKey("timeoutSeconds")) args.getInt("timeoutSeconds") else 45,
+        )
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun dismissIncomingCall(promise: Promise) {
+        ConnectIncomingCallCenter.dismissIncomingCall(reactContext.applicationContext)
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun getPendingIncomingCall(promise: Promise) {
+        val pending = ConnectIncomingCallCenter.consumePendingAnsweredCall()
+        promise.resolve(pending?.let { Arguments.makeNativeMap(it) })
     }
 
     /** Required by NativeEventEmitter — subscription bookkeeping happens on the JS side. */

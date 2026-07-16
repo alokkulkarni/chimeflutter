@@ -43,7 +43,9 @@ class _FakePlatform implements CallPlatform {
   Stream<CallEvent> get events => _events.stream;
   @override
   Future<void> join(CallSession session,
-          {bool callKitEnabled = false, String? callDisplayName}) async =>
+          {bool callKitEnabled = false,
+          String? callDisplayName,
+          bool asIncoming = false}) async =>
       pushState(CallState.connected);
   @override
   Future<void> leave() async => pushState(CallState.disconnected);
@@ -55,6 +57,16 @@ class _FakePlatform implements CallPlatform {
   Future<void> switchCamera() async {}
   @override
   Future<void> setSpeakerphoneEnabled(bool enabled) async {}
+  @override
+  Future<void> reportIncomingCall(
+      {required String callId,
+      required String displayName,
+      required bool isVideo,
+      required int timeoutSeconds}) async {}
+  @override
+  Future<void> dismissIncomingCall() async {}
+  @override
+  Future<Map<String, dynamic>?> getPendingIncomingCall() async => null;
 }
 
 class _FakeBackend extends BackendClient {

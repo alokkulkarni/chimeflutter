@@ -22,12 +22,40 @@ abstract interface class CallPlatform {
 
   /// Joins the native media session. When [callKitEnabled] the plugin reports the call to the OS
   /// system-call UI (CallKit / Telecom) using [callDisplayName] as the shown call name.
-  Future<void> join(CallSession session, {bool callKitEnabled, String callDisplayName});
+  ///
+  /// [asIncoming] joins an ANSWERED simulated-outbound call: the OS already shows the call (it was
+  /// reported by [reportIncomingCall] / the native push handler), so the native side attaches the
+  /// media to the existing call instead of starting a new outgoing one.
+  Future<void> join(
+    CallSession session, {
+    bool callKitEnabled,
+    String callDisplayName,
+    bool asIncoming,
+  });
   Future<void> leave();
   Future<bool> setMuted(bool muted);
   Future<void> setLocalVideoEnabled(bool enabled);
   Future<void> switchCamera();
   Future<void> setSpeakerphoneEnabled(bool enabled);
+
+  /// Shows the OS incoming-call UI (CallKit on iOS, a full-screen call notification + Telecom on
+  /// Android) for a simulated-outbound call push received on the Dart side. On iOS, VoIP pushes
+  /// arrive in the HOST APP's PushKit delegate before Dart runs — the host reports the call
+  /// natively via `ConnectCallKitManager.shared.reportIncomingCall` instead (see
+  /// docs/OUTBOUND_CALLS.md).
+  Future<void> reportIncomingCall({
+    required String callId,
+    required String displayName,
+    required bool isVideo,
+    required int timeoutSeconds,
+  });
+
+  /// Dismisses a still-ringing incoming call (e.g. the app learned the caller cancelled).
+  Future<void> dismissIncomingCall();
+
+  /// Returns `{callId, isVideo}` if the user answered the ring UI before Dart attached (cold
+  /// start), clearing it — the app should immediately `answerIncomingCall`. Null otherwise.
+  Future<Map<String, dynamic>?> getPendingIncomingCall();
 }
 
 /// Default [CallPlatform] backed by [MethodChannel]/[EventChannel].
@@ -62,11 +90,13 @@ class MethodChannelCallPlatform implements CallPlatform {
     CallSession session, {
     bool callKitEnabled = false,
     String callDisplayName = 'Support',
+    bool asIncoming = false,
   }) =>
       _invoke('join', <String, dynamic>{
         ...session.toJson(),
         'callKitEnabled': callKitEnabled,
         'callDisplayName': callDisplayName,
+        'asIncoming': asIncoming,
       });
 
   @override
@@ -92,6 +122,34 @@ class MethodChannelCallPlatform implements CallPlatform {
   @override
   Future<void> setSpeakerphoneEnabled(bool enabled) =>
       _invoke('setSpeakerphoneEnabled', <String, dynamic>{'enabled': enabled});
+
+  @override
+  Future<void> reportIncomingCall({
+    required String callId,
+    required String displayName,
+    required bool isVideo,
+    required int timeoutSeconds,
+  }) =>
+      _invoke('reportIncomingCall', <String, dynamic>{
+        'callId': callId,
+        'displayName': displayName,
+        'isVideo': isVideo,
+        'timeoutSeconds': timeoutSeconds,
+      });
+
+  @override
+  Future<void> dismissIncomingCall() => _invoke('dismissIncomingCall');
+
+  @override
+  Future<Map<String, dynamic>?> getPendingIncomingCall() async {
+    try {
+      final raw = await _methods.invokeMethod<Map<Object?, Object?>>('getPendingIncomingCall');
+      if (raw == null) return null;
+      return Map<String, dynamic>.from(raw);
+    } on PlatformException catch (e) {
+      throw _mapException(e);
+    }
+  }
 
   Future<void> _invoke(String method, [dynamic args]) async {
     try {

@@ -3,7 +3,7 @@ description: >-
   Reusable Flutter plugin that lets a mobile customer place a VoIP audio or WebRTC video call into
   Amazon Connect using the native Amazon Chime SDK. Fetches join credentials from a backend and
   drives the native media session over platform channels.
-version: 1.0.0
+version: 1.1.0
 repository: https://example.com/chimeflutter
 publish_to: none
 

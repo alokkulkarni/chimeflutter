@@ -365,10 +365,32 @@ like the Flutter host. Manifest permissions come from the library; request the r
 | JS → Host (call events) | iOS `Notification.Name.connectWebrtcEvent` · Android `ConnectWebrtcHostEvents.listener` | the raw event map: `{type: 'stateChanged', state: …}`, `{type: 'error', …}`, … |
 | Minimize | platform-native: sheet swipe-down (iOS) / back gesture (Android) | call keeps running (CallKit/Telecom + retained React instance) |
 
-## 10. Before production
+## 10. Receiving calls — agent-initiated ("simulated outbound")
+
+The library can also receive calls an **agent** places to the app: the backend starts the contact
+on the customer's behalf, routes it straight to the agent's personal queue (their voice slot is
+occupied while your phone rings — Connect offers them nothing else), and wakes the device with an
+APNs **VoIP** push (iOS) / high-priority **FCM** data push (Android). The OS incoming-call UI
+appears even with the app killed; on answer the app joins the exact same media path:
+
+```tsx
+await backendClient.registerDevice(customerId, Platform.OS === 'ios' ? 'iOS' : 'Android', token);
+controller.onEvent((e) => {
+  if (e.type === 'incomingCallAnswered') controller.answerIncomingCall(e.callId, e.isVideo ? 'video' : 'audio');
+  if (e.type === 'incomingCallDeclined') controller.declineIncomingCall(e.callId);
+});
+await controller.handlePendingIncomingCall(); // cold start
+```
+
+One-time setup (SNS platform applications, the outbound contact flow, PushKit in your iOS
+AppDelegate, a FirebaseMessagingService on Android) is a dedicated step-by-step guide:
+**[../OUTBOUND_CALLS.md](../OUTBOUND_CALLS.md)**.
+
+## 11. Before production
 
 - **Add authentication** in front of the API and return the session token from `tokenProvider`
   (sent as `Authorization: Bearer …`; empty string = no header).
 - Security posture, API contract and the full reference:
   [INTEGRATION.md](./INTEGRATION.md) · publishing the package: [PUBLISHING.md](./PUBLISHING.md) ·
-  backend runbook: [../DEPLOYMENT.md](../DEPLOYMENT.md).
+  backend runbook: [../DEPLOYMENT.md](../DEPLOYMENT.md) ·
+  agent-initiated calls: [../OUTBOUND_CALLS.md](../OUTBOUND_CALLS.md).

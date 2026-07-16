@@ -68,7 +68,12 @@ export interface CallRequest {
   device: DeviceInfo;
 }
 
-/** Discriminated union of everything the native side reports (§B.2). */
+/** Discriminated union of everything the native side reports (§B.2).
+ *
+ *  The `incomingCall*` events belong to SIMULATED-OUTBOUND (agent-initiated) calls:
+ *  `incomingCallAnswered` → call `controller.answerIncomingCall(callId)`;
+ *  `incomingCallDeclined` → call `controller.declineIncomingCall(callId)` so the waiting agent is
+ *  released immediately; `incomingCallMissed` → the local ring UI timed out. */
 export type CallEvent =
   | { type: 'stateChanged'; state: CallState; reason?: string }
   | { type: 'muteChanged'; muted: boolean }
@@ -79,7 +84,16 @@ export type CallEvent =
   | { type: 'videoTileRemoved'; tileId: number }
   | { type: 'audioRouteChanged'; route: 'speaker' | 'receiver' | 'bluetooth' | 'headset' }
   | { type: 'networkQualityChanged'; quality: 'good' | 'poor'; attendeeId?: string }
-  | { type: 'error'; code: string; message: string; fatal: boolean };
+  | { type: 'error'; code: string; message: string; fatal: boolean }
+  | { type: 'incomingCallAnswered'; callId: string; isVideo: boolean }
+  | { type: 'incomingCallDeclined'; callId: string }
+  | { type: 'incomingCallMissed'; callId: string };
+
+/** A parked cold-start answer, drained via `controller.handlePendingIncomingCall()`. */
+export interface PendingIncomingCall {
+  callId: string;
+  isVideo: boolean;
+}
 
 /** Bearer token sent as `Authorization: Bearer <token>`. Return '' for no header (e.g. while the
  *  demo backend runs auth-free). NEVER hard-code tokens — read them from your session. */

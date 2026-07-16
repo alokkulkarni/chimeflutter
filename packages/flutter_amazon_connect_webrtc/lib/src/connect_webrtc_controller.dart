@@ -110,6 +110,90 @@ class ConnectWebRtcController {
     }
   }
 
+  /// Shows the OS incoming-call UI for a simulated-outbound push received on the Dart side
+  /// (Android FCM via e.g. `firebase_messaging`). On iOS the host app's PushKit delegate must
+  /// report the call natively instead — see docs/OUTBOUND_CALLS.md.
+  Future<void> reportIncomingCall({
+    required String callId,
+    required String displayName,
+    bool isVideo = false,
+    int timeoutSeconds = 45,
+  }) =>
+      _platform.reportIncomingCall(
+        callId: callId,
+        displayName: displayName,
+        isVideo: isVideo,
+        timeoutSeconds: timeoutSeconds,
+      );
+
+  /// Answers a ringing simulated-outbound call: verify permissions → exchange [callId] for the
+  /// join credentials (`POST /calls/outbound/{callId}/answer`) → attach the media to the call the
+  /// OS is already showing. Call this from your [IncomingCallAnswered] event handler.
+  ///
+  /// Throws [PermissionDeniedException], [InvalidRequestException] (410 when the call is no longer
+  /// ringing), [AuthException], [BackendException] or [MediaException], leaving state `failed`.
+  Future<void> answerIncomingCall({required String callId, CallType callType = CallType.audio}) async {
+    if (_state.value.isActive) {
+      throw StateError('A call is already in progress');
+    }
+    _setState(CallState.connecting);
+
+    final granted = await _permissions.ensureCallPermissions(callType);
+    if (!granted) {
+      _setState(CallState.failed);
+      throw const PermissionDeniedException();
+    }
+
+    final CallSession session;
+    try {
+      session = await _backend.answerOutboundCall(callId, correlationId: _newCorrelationId());
+    } catch (_) {
+      _setState(CallState.failed);
+      rethrow;
+    }
+
+    _session = session;
+    try {
+      await _platform.join(
+        session,
+        callKitEnabled: _config.callKitEnabled,
+        callDisplayName: _config.callDisplayName,
+        asIncoming: true,
+      );
+      // `connected` arrives asynchronously via the native `stateChanged` event.
+    } catch (_) {
+      _setState(CallState.failed);
+      rethrow;
+    }
+  }
+
+  /// Declines a ringing simulated-outbound call: dismisses the ring UI (best-effort) and tells the
+  /// backend to stop the contact so the waiting agent is released immediately. Call this from your
+  /// [IncomingCallDeclined] handler (or an in-app decline button).
+  Future<void> declineIncomingCall(String callId) async {
+    try {
+      await _platform.dismissIncomingCall();
+    } catch (_) {
+      // Ring UI may already be gone — the backend decline is what matters.
+    }
+    await _backend.declineOutboundCall(callId, correlationId: _newCorrelationId());
+  }
+
+  /// Cold-start recovery: when the user answered the OS ring UI before Flutter was running, the
+  /// native side parks the answer. Call this once at startup; it answers the parked call and
+  /// returns true, or returns false when there is nothing pending.
+  Future<bool> handlePendingIncomingCall() async {
+    final pending = await _platform.getPendingIncomingCall();
+    final callId = pending?['callId'] as String?;
+    if (callId == null || callId.isEmpty) return false;
+    final isVideo = (pending?['isVideo'] as bool?) ?? false;
+    await answerIncomingCall(
+      callId: callId,
+      callType: isVideo ? CallType.video : CallType.audio,
+    );
+    return true;
+  }
+
   Future<void> endCall() async {
     final session = _session;
     try {

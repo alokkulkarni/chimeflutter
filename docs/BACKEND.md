@@ -80,11 +80,27 @@ authorized by the token itself, not IAM.
 ### 3.4 `POST /v1/calls/dtmf`
 `{connectionToken, digits}` (`[0-9*#,]{1,20}`) → **200** `{sent: true}`.
 
-### 3.5 Error envelope (every non-2xx)
+### 3.5 Simulated outbound (agent-initiated) calls — full guide: [OUTBOUND_CALLS.md](./OUTBOUND_CALLS.md)
+| Endpoint | Caller | Result |
+|---|---|---|
+| `POST /v1/devices` | app | Registers `{customerId, platform, pushToken}` → SNS platform endpoint + DynamoDB. |
+| `POST /v1/calls/outbound` | agent tooling | Availability-gates the agent (`GetCurrentUserData`), starts a WebRTC contact routed to the **agent queue**, pushes the device → **201** `{callId, contactId, status:'ringing', expiresAt}`. |
+| `GET /v1/calls/outbound/{callId}` | agent tooling | Status view (`ringing/answered/declined/timedOut/cancelled`) — never tokens. |
+| `POST /v1/calls/outbound/{callId}/answer` | app | **200** full CallSession (same shape as `POST /calls`); **410** when no longer ringing. |
+| `POST /v1/calls/outbound/{callId}/decline` | app | **204**; stops the contact, releasing the agent. |
+
+A 1-minute schedule (Lambda) / 60 s timer (container) times out unanswered calls and stops their
+contacts. Push credentials live in SNS **platform applications** (APNS_VOIP + FCM) created
+out-of-band; the push payload carries only the `callId`, never join credentials.
+
+### 3.6 Error envelope (every non-2xx)
 `{"error": {"code", "message"}, "correlationId"}` — codes: `INVALID_CALL_TYPE`,
 `INVALID_PLATFORM`, `INVALID_JSON`, `EMPTY_BODY`, `MISSING_CONTACT_ID`, `INVALID_DIGITS`,
 `RATE_LIMITED` (429 — retry with the SAME idempotency key), `UPSTREAM_ERROR` (502),
-`NOT_FOUND`/`PAYLOAD_TOO_LARGE`/`INTERNAL_ERROR` (container adapter only).
+`NOT_FOUND`/`PAYLOAD_TOO_LARGE`/`INTERNAL_ERROR` (container adapter only). Outbound adds:
+`INVALID_CUSTOMER_ID`, `INVALID_AGENT_ID`, `INVALID_PUSH_TOKEN`, `AGENT_NOT_AVAILABLE` (409),
+`CALL_NO_LONGER_RINGING` (410), `PUSH_FAILED` (502), `PUSH_NOT_CONFIGURED` /
+`OUTBOUND_NOT_CONFIGURED` (501).
 
 ### Path prefix
 API Gateway serves everything under the `v1` **stage** (`https://…/v1/calls`). The container
@@ -103,15 +119,22 @@ backend/
 │   ├── config/env.ts           env loader — the ONLY reader of environment variables (§5)
 │   ├── domain/                 logger (structured JSON, redaction), types
 │   ├── http/                   API GW event helpers, error envelope, response builders
-│   ├── handlers/               business logic: startCall, endCall, participant
+│   ├── handlers/               business logic: startCall, endCall, participant + outbound:
+│   │                           registerDevice, startOutboundCall, outboundCallAction, sweep
 │   ├── connect/                AWS adapters: connectClient, participantClient, attributes
-│   │                           (allow-listing), capabilities (video), session (unwrap)
-│   ├── lambda/                 Lambda entrypoints (wiring only): startCall, endCall,
-│   │                           participant, health
+│   │                           (allow-listing), capabilities (video), session (unwrap),
+│   │                           agentAvailability (GetCurrentUserData gate)
+│   ├── store/                  DynamoDB ports: deviceStore, outboundCallStore (conditional
+│   │                           ringing→X transitions so answer/decline/sweep race safely)
+│   ├── push/                   pushSender — SNS mobile push (APNS_VOIP / FCM), callId-only payloads
+│   ├── lambda/                 Lambda entrypoints (wiring only); outbound ones wire lazily so a
+│   │                           container without outbound config still boots (routes answer 501)
 │   └── server/                 container adapter: adapter.ts (pure request→event translation,
-│                               unit-tested), main.ts (node:http server, graceful shutdown)
-└── tests/                      85 Jest tests: unit (validation, attributes, redaction, config,
-                                envelope, server adapter) + integration (handlers with mocked AWS)
+│                               unit-tested), main.ts (node:http server, graceful shutdown,
+│                               60 s outbound ring-timeout sweeper)
+└── tests/                      127 Jest tests: unit (validation, attributes, redaction, config,
+                                envelope, server adapter, push payloads, availability) +
+                                integration (handlers with mocked AWS / in-memory stores)
 ```
 
 ## 5. Configuration (environment variables)
@@ -124,6 +147,12 @@ backend/
 | `ALLOWED_CLIENT_ATTRIBUTE_KEYS` | no | `AllowedClientAttributeKeys` | CSV allow-list of client context keys (default: `issueType, issueSubType, productId, tier, segment, language, preferredAgentId, lastScreen, campaignId`). |
 | `LOG_LEVEL` | no (`info`) | `LogLevel` | `debug`/`info`/`warn`/`error`. |
 | `PORT` | no (`8080`) | — | **Container only** — listen port. |
+| `DEVICES_TABLE` | outbound only | `DevicesTable` (auto) | DynamoDB table for device push registrations. |
+| `OUTBOUND_CALLS_TABLE` | outbound only | `OutboundCallsTable` (auto) | DynamoDB table for outbound call records (TTL attribute `ttl`). Also gates the container's sweeper timer. |
+| `CONNECT_OUTBOUND_CONTACT_FLOW_ID` | no | `ConnectOutboundContactFlowId` | Flow that routes by `$.Attributes.targetAgentArn` ([import guide](./OUTBOUND_CALLS.md#4-amazon-connect-flow-import-it-yourself--nothing-touches-your-instance-automatically)). Empty ⇒ falls back to the inbound flow. |
+| `OUTBOUND_RING_TIMEOUT_SECONDS` | no (`45`) | `OutboundRingTimeoutSeconds` | Ring deadline; clamped 15–120 s. |
+| `APNS_VOIP_PLATFORM_APPLICATION_ARN` | iOS outbound | `ApnsVoipPlatformApplicationArn` | SNS APNS_VOIP platform application (holds the APNs `.p8`). |
+| `FCM_PLATFORM_APPLICATION_ARN` | Android outbound | `FcmPlatformApplicationArn` | SNS FCM platform application (holds the FCM service-account credentials). |
 
 Config is loaded once at cold start / container start and **fails fast** if a required variable is
 missing — a misconfigured container exits immediately rather than serving broken responses.

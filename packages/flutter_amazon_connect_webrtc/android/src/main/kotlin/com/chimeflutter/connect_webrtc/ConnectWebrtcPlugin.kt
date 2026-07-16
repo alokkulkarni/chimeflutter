@@ -18,11 +18,16 @@ class ConnectWebrtcPlugin :
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
     private lateinit var callManager: ChimeCallManager
+    private var applicationContext: android.content.Context? = null
     private var eventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        applicationContext = binding.applicationContext
         callManager = ChimeCallManager(binding.applicationContext) { event -> emit(event) }
+        // Forward incoming-call (simulated outbound) answer/decline events to Dart. Anything that
+        // happened before this point (cold start) is parked and drained via getPendingIncomingCall.
+        ConnectIncomingCallCenter.listener = { event -> emit(event) }
 
         methodChannel = MethodChannel(binding.binaryMessenger, "com.chimeflutter.connect_webrtc/methods")
         methodChannel.setMethodCallHandler(this)
@@ -37,8 +42,10 @@ class ConnectWebrtcPlugin :
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        ConnectIncomingCallCenter.listener = null
         methodChannel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
+        applicationContext = null
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -68,6 +75,28 @@ class ConnectWebrtcPlugin :
                     callManager.setSpeakerphone(call.argument<Boolean>("enabled") ?: false)
                     result.success(null)
                 }
+                "reportIncomingCall" -> {
+                    val context = applicationContext
+                    val callId = call.argument<String>("callId")
+                    if (context == null || callId.isNullOrEmpty()) {
+                        result.error("sdkError", "reportIncomingCall requires a callId", null)
+                    } else {
+                        ConnectIncomingCallCenter.reportIncomingCall(
+                            context = context,
+                            callId = callId,
+                            displayName = call.argument<String>("displayName") ?: "Support",
+                            isVideo = call.argument<Boolean>("isVideo") ?: false,
+                            timeoutSeconds = call.argument<Int>("timeoutSeconds") ?: 45,
+                        )
+                        result.success(null)
+                    }
+                }
+                "dismissIncomingCall" -> {
+                    applicationContext?.let { ConnectIncomingCallCenter.dismissIncomingCall(it) }
+                    result.success(null)
+                }
+                "getPendingIncomingCall" ->
+                    result.success(ConnectIncomingCallCenter.consumePendingAnsweredCall())
                 else -> result.notImplemented()
             }
         } catch (e: ChimeMeetingSessionAdapter.MissingFieldException) {

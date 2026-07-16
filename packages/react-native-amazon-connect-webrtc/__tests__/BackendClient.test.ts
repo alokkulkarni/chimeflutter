@@ -169,3 +169,55 @@ describe('endCall', () => {
     await client(fetchFn).endCall('contact/1');
   });
 });
+
+describe('simulated outbound endpoints', () => {
+  it('registerDevice POSTs the push token to /devices', async () => {
+    const fetchFn = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe('https://api.example.com/v1/devices');
+      expect(init?.method).toBe('POST');
+      expect(JSON.parse(String(init?.body))).toEqual({
+        customerId: 'cust-1',
+        platform: 'iOS',
+        pushToken: 'voip-token',
+      });
+      return jsonResponse(200, { customerId: 'cust-1', platform: 'iOS' });
+    }) as unknown as typeof fetch;
+
+    await client(fetchFn).registerDevice('cust-1', 'iOS', 'voip-token');
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('answerOutboundCall exchanges the callId for a CallSession', async () => {
+    const fetchFn = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe('https://api.example.com/v1/calls/outbound/call-1/answer');
+      expect(init?.method).toBe('POST');
+      return jsonResponse(200, SESSION);
+    }) as unknown as typeof fetch;
+
+    const session = await client(fetchFn).answerOutboundCall('call-1');
+    expect(session.contactId).toBe('contact-1');
+    expect(session.attendee.joinToken).toBe('jtoken-1');
+  });
+
+  it('answerOutboundCall surfaces 410 (no longer ringing) as InvalidRequestError', async () => {
+    const fetchFn = jest.fn(async () =>
+      jsonResponse(410, { error: { code: 'CALL_NO_LONGER_RINGING', message: 'gone' } }),
+    ) as unknown as typeof fetch;
+
+    await expect(client(fetchFn).answerOutboundCall('call-1')).rejects.toMatchObject({
+      code: 'CALL_NO_LONGER_RINGING',
+      httpStatus: 410,
+    });
+  });
+
+  it('declineOutboundCall POSTs to .../decline and accepts 204', async () => {
+    const fetchFn = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe('https://api.example.com/v1/calls/outbound/call-2/decline');
+      expect(init?.method).toBe('POST');
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch;
+
+    await client(fetchFn).declineOutboundCall('call-2');
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});

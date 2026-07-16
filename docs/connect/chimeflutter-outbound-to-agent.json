@@ -1,0 +1,83 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "setOutboundMarker",
+  "Metadata": {
+    "EntryPointPosition": { "x": 20, "y": 20 },
+    "ActionMetadata": {
+      "setOutboundMarker": { "Position": { "x": 180, "y": 20 } },
+      "setAgentQueue": { "Position": { "x": 440, "y": 20 } },
+      "transferToAgentQueue": { "Position": { "x": 700, "y": 20 } },
+      "setFallbackQueue": { "Position": { "x": 440, "y": 220 } },
+      "transferToFallbackQueue": { "Position": { "x": 700, "y": 220 } },
+      "disconnect": { "Position": { "x": 960, "y": 120 } }
+    }
+  },
+  "Actions": [
+    {
+      "Identifier": "setOutboundMarker",
+      "Type": "UpdateContactAttributes",
+      "Parameters": {
+        "Attributes": { "callHandledBy": "chimeflutter-outbound-flow" },
+        "TargetNamespace": "User"
+      },
+      "Transitions": {
+        "NextAction": "setAgentQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "setAgentQueue" }
+        ]
+      }
+    },
+    {
+      "Identifier": "setAgentQueue",
+      "Type": "UpdateContactTargetQueue",
+      "Parameters": { "AgentId": "$.Attributes.targetAgentArn" },
+      "Transitions": {
+        "NextAction": "transferToAgentQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "setFallbackQueue" }
+        ]
+      }
+    },
+    {
+      "Identifier": "transferToAgentQueue",
+      "Type": "TransferContactToQueue",
+      "Parameters": {},
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [
+          { "ErrorType": "QueueAtCapacity", "NextAction": "setFallbackQueue" },
+          { "ErrorType": "NoMatchingError", "NextAction": "setFallbackQueue" }
+        ]
+      }
+    },
+    {
+      "Identifier": "setFallbackQueue",
+      "Type": "UpdateContactTargetQueue",
+      "Parameters": { "QueueId": "${QUEUE_ARN_General}" },
+      "Transitions": {
+        "NextAction": "transferToFallbackQueue",
+        "Errors": [
+          { "ErrorType": "NoMatchingError", "NextAction": "disconnect" }
+        ]
+      }
+    },
+    {
+      "Identifier": "transferToFallbackQueue",
+      "Type": "TransferContactToQueue",
+      "Parameters": {},
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [
+          { "ErrorType": "QueueAtCapacity", "NextAction": "disconnect" },
+          { "ErrorType": "NoMatchingError", "NextAction": "disconnect" }
+        ]
+      }
+    },
+    {
+      "Identifier": "disconnect",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}
