@@ -195,6 +195,36 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('audio button mirrors the OS route: bluetooth/headset icon + label, speaker active',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final (_, platform, _) = await _pumpCallHome(tester);
+
+    await tester.tap(find.text('Audio call'));
+    await tester.pumpAndSettle();
+    platform.pushState(CallState.connected);
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Speaker'), findsOneWidget);
+
+    platform.pushEvent(const AudioRouteChanged(route: 'bluetooth'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Bluetooth'), findsOneWidget);
+    expect(find.byIcon(Icons.bluetooth_audio), findsOneWidget);
+    expect(find.bySemanticsLabel('Speaker'), findsNothing);
+    await _expectAllGuidelines(tester);
+
+    platform.pushEvent(const AudioRouteChanged(route: 'headset'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Headset'), findsOneWidget);
+    expect(find.byIcon(Icons.headset), findsOneWidget);
+
+    platform.pushEvent(const AudioRouteChanged(route: 'speaker'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Speaker'), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    handle.dispose();
+  });
+
   testWidgets('single-call-type mode auto-dials, hides video controls, and stays compliant',
       (tester) async {
     final handle = tester.ensureSemantics();

@@ -142,14 +142,44 @@ describe('in-call controls', () => {
     expect(flip.props.accessibilityState).toEqual({ selected: false, disabled: true });
 
     // Emoji glyphs are presentation-only.
+    // NOTE: '🎧' is excluded — it is also the decorative avatar glyph, which is hidden via its
+    // parent wrapper (no-hide-descendants) rather than per-node.
     const glyphTexts = tree.root.findAll(
-      (n) => String(n.type) === 'Text' && ['🎙', '🔊', '🔢', '📞', '🚫', '🔄'].includes(n.props.children),
+      (n) =>
+        String(n.type) === 'Text' &&
+        ['🎙', '🔊', '🔈', '🔢', '📞', '🚫', '🔄'].includes(n.props.children),
     );
     expect(glyphTexts.length).toBeGreaterThan(0);
     for (const glyph of glyphTexts) {
       expect(glyph.props.accessible).toBe(false);
       expect(glyph.props.importantForAccessibility).toBe('no');
     }
+  });
+
+  it('audio button mirrors the OS route: bluetooth/headset glyph + label, speaker selected', async () => {
+    const { tree, pushEvent } = await renderScreen('connected');
+    const speakerBtn = () =>
+      pressables(tree).find((p) =>
+        String(p.props.accessibilityLabel ?? '').includes('speaker'),
+      )!;
+
+    // Default (earpiece): plain speaker toggle.
+    expect(speakerBtn().props.accessibilityLabel).toBe('Turn speaker on');
+
+    await act(async () => pushEvent({ type: 'audioRouteChanged', route: 'bluetooth' }));
+    expect(speakerBtn().props.accessibilityLabel).toBe('Audio on Bluetooth. Turn speaker on');
+    const btLabel = tree.root.findAll(
+      (n) => String(n.type) === 'Text' && n.props.children === 'Bluetooth',
+    );
+    expect(btLabel.length).toBe(1);
+
+    await act(async () => pushEvent({ type: 'audioRouteChanged', route: 'headset' }));
+    expect(speakerBtn().props.accessibilityLabel).toBe('Audio on headset. Turn speaker on');
+
+    await act(async () => pushEvent({ type: 'audioRouteChanged', route: 'speaker' }));
+    expect(speakerBtn().props.accessibilityLabel).toBe('Turn speaker off');
+    expect(speakerBtn().props.accessibilityState).toEqual({ selected: true, disabled: false });
+    expectAllTouchablesAccessible(tree);
   });
 
   it('audio-only config hides the video controls and stays fully labelled', async () => {

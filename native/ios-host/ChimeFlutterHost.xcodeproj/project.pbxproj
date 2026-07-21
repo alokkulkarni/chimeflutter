@@ -7,30 +7,32 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		78FB59116C3B6805E85706FF /* Pods_HostApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 29D997E0A9A25DD62987313A /* Pods_HostApp.framework */; };
 		9DC45F66060DB5F1D5A18BF6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790D5CFCAF6A84C0CE2EB3FB /* AppDelegate.swift */; };
-		A18D4769111811A557BD2898 /* Pods_HostApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FEB65FE3BFB931BD704F6058 /* Pods_HostApp.framework */; };
 		A26FDED05ABE9753C3BBA3A3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2A8E166636F02D02F96F7F0A /* Assets.xcassets */; };
 		AD0D785CEF4CDC3BB058A32B /* HostRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCBB625F2349AD4FC69B2D2 /* HostRoot.swift */; };
+		CF932A066DB512CB84791A8E /* SupportCallLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C4A812DA5F2E5D1A01C563 /* SupportCallLauncher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		29D997E0A9A25DD62987313A /* Pods_HostApp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_HostApp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2A8E166636F02D02F96F7F0A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		6BFDEF005F91B47809A9295F /* Pods-HostApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HostApp.release.xcconfig"; path = "Target Support Files/Pods-HostApp/Pods-HostApp.release.xcconfig"; sourceTree = "<group>"; };
-		765F4C4C41A3651B48D0C449 /* Pods-HostApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HostApp.debug.xcconfig"; path = "Target Support Files/Pods-HostApp/Pods-HostApp.debug.xcconfig"; sourceTree = "<group>"; };
+		7432626F23190BC96CFF86A0 /* Pods-HostApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HostApp.debug.xcconfig"; path = "Target Support Files/Pods-HostApp/Pods-HostApp.debug.xcconfig"; sourceTree = "<group>"; };
+		761ABB365349BE2C8198B9D0 /* Pods-HostApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-HostApp.release.xcconfig"; path = "Target Support Files/Pods-HostApp/Pods-HostApp.release.xcconfig"; sourceTree = "<group>"; };
 		790D5CFCAF6A84C0CE2EB3FB /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		A7DD92249600B78202A49356 /* HostApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		85C4A812DA5F2E5D1A01C563 /* SupportCallLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportCallLauncher.swift; sourceTree = "<group>"; };
+		A7DD92249600B78202A49356 /* HostApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HostApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AFD07BADBAE2C5B94A9EDC1E /* HostApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HostApp.entitlements; sourceTree = "<group>"; };
 		B199E1B1478CAB3D10CAE235 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EBCBB625F2349AD4FC69B2D2 /* HostRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRoot.swift; sourceTree = "<group>"; };
-		FEB65FE3BFB931BD704F6058 /* Pods_HostApp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_HostApp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		7AB486E03087C20C68486506 /* Frameworks */ = {
+		B62013AD854E7896917BAD96 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A18D4769111811A557BD2898 /* Pods_HostApp.framework in Frameworks */,
+				78FB59116C3B6805E85706FF /* Pods_HostApp.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -42,26 +44,19 @@
 			children = (
 				CC91A6E68085606EE2DAFE77 /* HostApp */,
 				873B9CACAE91548E8B872042 /* Products */,
-				2CA279DD1C66313BBA6885E0 /* Pods */,
-				8341EA060DE4D8187235AC07 /* Frameworks */,
+				0D7E19CD730DC06B154C5549 /* Pods */,
+				C11AD630F636B4C44BE8282B /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
-		2CA279DD1C66313BBA6885E0 /* Pods */ = {
+		0D7E19CD730DC06B154C5549 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				765F4C4C41A3651B48D0C449 /* Pods-HostApp.debug.xcconfig */,
-				6BFDEF005F91B47809A9295F /* Pods-HostApp.release.xcconfig */,
+				7432626F23190BC96CFF86A0 /* Pods-HostApp.debug.xcconfig */,
+				761ABB365349BE2C8198B9D0 /* Pods-HostApp.release.xcconfig */,
 			);
+			name = Pods;
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		8341EA060DE4D8187235AC07 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				FEB65FE3BFB931BD704F6058 /* Pods_HostApp.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		873B9CACAE91548E8B872042 /* Products */ = {
@@ -72,6 +67,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		C11AD630F636B4C44BE8282B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				29D997E0A9A25DD62987313A /* Pods_HostApp.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		CC91A6E68085606EE2DAFE77 /* HostApp */ = {
 			isa = PBXGroup;
 			children = (
@@ -80,6 +83,7 @@
 				AFD07BADBAE2C5B94A9EDC1E /* HostApp.entitlements */,
 				EBCBB625F2349AD4FC69B2D2 /* HostRoot.swift */,
 				B199E1B1478CAB3D10CAE235 /* Info.plist */,
+				85C4A812DA5F2E5D1A01C563 /* SupportCallLauncher.swift */,
 			);
 			path = HostApp;
 			sourceTree = "<group>";
@@ -91,14 +95,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = B37A7EEFE56DD82EC5C7090F /* Build configuration list for PBXNativeTarget "HostApp" */;
 			buildPhases = (
-				93D2EA78D670454F1C2BF31D /* [CP] Check Pods Manifest.lock */,
-				94633DCC58A2949589D51C6F /* [CP-User] Run Flutter Build chime_call_module Script */,
+				5B15AC0EDBFFD8E2118ADDE0 /* [CP] Check Pods Manifest.lock */,
+				6F830EAB5CDA1EF50F672CBA /* [CP-User] Run Flutter Build chime_call_module Script */,
 				0783717E8B3521010566F33A /* Sources */,
 				52DFDD1773E178DD41B03ADA /* Resources */,
-				7AB486E03087C20C68486506 /* Frameworks */,
-				DCAA882E078D5E76BD0C928B /* [CP] Embed Pods Frameworks */,
-				6BC814921080807BFAB50303 /* [CP] Copy Pods Resources */,
-				E8D19AC24FBAC1786E2F3096 /* [CP-User] Embed Flutter Build chime_call_module Script */,
+				B62013AD854E7896917BAD96 /* Frameworks */,
+				903E1A01AD352727EFDD83BC /* [CP] Embed Pods Frameworks */,
+				A5882431F3EF8440F3FCB836 /* [CP] Copy Pods Resources */,
+				2BD3E97E1C6DB7B3801D7BF8 /* [CP-User] Embed Flutter Build chime_call_module Script */,
 			);
 			buildRules = (
 			);
@@ -116,7 +120,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2660;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 78E9CD78E107B99689D1CDE6 /* Build configuration list for PBXProject "ChimeFlutterHost" */;
 			developmentRegion = en;
@@ -149,24 +155,17 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		6BC814921080807BFAB50303 /* [CP] Copy Pods Resources */ = {
+		2BD3E97E1C6DB7B3801D7BF8 /* [CP-User] Embed Flutter Build chime_call_module Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
+			name = "[CP-User] Embed Flutter Build chime_call_module Script";
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-resources.sh\"\n";
-			showEnvVarsInLog = 0;
+			shellScript = "set -e\nset -u\nsource \"${SRCROOT}/../flutter_call_module/.ios/Flutter/flutter_export_environment.sh\"\nexport VERBOSE_SCRIPT_LOGGING=1 && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/xcode_backend.sh embed_and_thin";
 		};
-		93D2EA78D670454F1C2BF31D /* [CP] Check Pods Manifest.lock */ = {
+		5B15AC0EDBFFD8E2118ADDE0 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -188,7 +187,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		94633DCC58A2949589D51C6F /* [CP-User] Run Flutter Build chime_call_module Script */ = {
+		6F830EAB5CDA1EF50F672CBA /* [CP-User] Run Flutter Build chime_call_module Script */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -198,7 +197,7 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\nset -u\nsource \"${SRCROOT}/../flutter_call_module/.ios/Flutter/flutter_export_environment.sh\"\nexport VERBOSE_SCRIPT_LOGGING=1 && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/xcode_backend.sh build";
 		};
-		DCAA882E078D5E76BD0C928B /* [CP] Embed Pods Frameworks */ = {
+		903E1A01AD352727EFDD83BC /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -215,15 +214,22 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		E8D19AC24FBAC1786E2F3096 /* [CP-User] Embed Flutter Build chime_call_module Script */ = {
+		A5882431F3EF8440F3FCB836 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			name = "[CP-User] Embed Flutter Build chime_call_module Script";
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nset -u\nsource \"${SRCROOT}/../flutter_call_module/.ios/Flutter/flutter_export_environment.sh\"\nexport VERBOSE_SCRIPT_LOGGING=1 && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/xcode_backend.sh embed_and_thin";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-HostApp/Pods-HostApp-resources.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -234,6 +240,7 @@
 			files = (
 				9DC45F66060DB5F1D5A18BF6 /* AppDelegate.swift in Sources */,
 				AD0D785CEF4CDC3BB058A32B /* HostRoot.swift in Sources */,
+				CF932A066DB512CB84791A8E /* SupportCallLauncher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,7 +249,7 @@
 /* Begin XCBuildConfiguration section */
 		28AFC0396B91A9F71FDE9382 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 765F4C4C41A3651B48D0C449 /* Pods-HostApp.debug.xcconfig */;
+			baseConfigurationReference = 7432626F23190BC96CFF86A0 /* Pods-HostApp.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = HostApp/HostApp.entitlements;
@@ -266,7 +273,7 @@
 		};
 		2D9FAE6F70362DD78E149A23 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 6BFDEF005F91B47809A9295F /* Pods-HostApp.release.xcconfig */;
+			baseConfigurationReference = 761ABB365349BE2C8198B9D0 /* Pods-HostApp.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = HostApp/HostApp.entitlements;
@@ -292,7 +299,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -324,10 +330,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = U5EMEFZ957;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -348,7 +352,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -359,7 +362,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -391,10 +393,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = U5EMEFZ957;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -408,7 +408,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

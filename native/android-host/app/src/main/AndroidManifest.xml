@@ -38,6 +38,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Demo feature screen with its own call entry point (SupportCallLauncher). -->
+        <activity
+            android:name=".PaymentsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ChimeFlutterHost" />
+
         <!-- The Flutter call UI (add-to-app), launched with the cached engine. -->
         <activity
             android:name="io.flutter.embedding.android.FlutterActivity"

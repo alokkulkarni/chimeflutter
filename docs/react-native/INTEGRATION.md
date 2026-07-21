@@ -60,7 +60,7 @@ session JWT (sent as `Authorization: Bearer …`) or `''` for no header.
 | `sendDtmf(digits)` | `0-9 * #` and `,` (pause), ≤20 chars, validated client-side. Uses the Connect **Participant Service** (`POST /calls/connections` once, then `/calls/dtmf`; auto-recreates the connection once on expiry). DTMF is NOT in-band audio — WebRTC contacts don't support that. |
 | `setMuted(muted)` | Routed through CallKit/Telecom when enabled so the system UI stays in sync. |
 | `enableLocalVideo()` / `disableLocalVideo()` / `switchCamera()` | Local video control. |
-| `setSpeakerphone(enabled)` | Routes via the Chime device controller (iOS) / Telecom endpoints (Android) — the only reliable way under CallKit/Telecom. |
+| `setSpeakerphone(enabled)` | Routes via the Chime device controller (iOS) / Telecom endpoints (Android) — the only reliable way under CallKit/Telecom. Speaker **off** hands routing back to the OS preference (bluetooth → wired headset → earpiece); the resulting route arrives as an `audioRouteChanged` event rather than being assumed. On iOS the library also routes to an already-connected bluetooth/wired headset automatically at call start (the phone-app default the Chime meetings SDK doesn't apply). |
 | `getState()` / `getSession()` / `isInCall` | Current state / active `CallSession` (has `contactId`) / convenience. |
 | `onStateChanged(fn)` / `onEvent(fn)` | Subscriptions; both return their unsubscribe function. |
 | `answerIncomingCall(callId, callType?)` | Simulated outbound: permissions → `POST /calls/outbound/{callId}/answer` → attaches media to the call the OS is already showing (410 when no longer ringing). |
@@ -77,8 +77,10 @@ once after sign-in with the APNs **VoIP** token (iOS) / FCM registration token (
 States: `idle → connecting → ringing → connected → (reconnecting ↔ connected) → disconnected | failed`.
 
 Events (`onEvent`): `stateChanged`, `muteChanged`, `participantJoined/Left`,
-`localVideoAvailable`, `remoteVideoAvailable`, `videoTileRemoved`, `audioRouteChanged`,
-`networkQualityChanged`, `error {code, message, fatal}`, plus the simulated-outbound ring-UI
+`localVideoAvailable`, `remoteVideoAvailable`, `videoTileRemoved`,
+`audioRouteChanged {route: 'speaker' | 'receiver' | 'bluetooth' | 'headset'}` — the ACTIVE OS audio
+output, emitted on join and whenever it changes (bluetooth headset connecting, headphones plugged
+in/out, speaker toggled — including from the system call UI), `networkQualityChanged`, `error {code, message, fatal}`, plus the simulated-outbound ring-UI
 outcomes `incomingCallAnswered {callId, isVideo}`, `incomingCallDeclined {callId}` and
 `incomingCallMissed {callId}` — identical to the Flutter contract (specs/003 §B.2).
 
@@ -91,7 +93,9 @@ self-view.
 ### `<ConnectCallScreen controller={…} … />` — prebuilt call UI
 
 The ready-made call screen (counterpart of the Flutter module's UI): audio/video chooser — or
-auto-dial when `enabledCallTypes` is a single type — mute/speaker/video/flip controls, a DTMF
+auto-dial when `enabledCallTypes` is a single type — mute/speaker/video/flip controls (the audio
+button mirrors the system call screen's route indicator: it shows a Bluetooth/Headset glyph and
+label when the OS routes audio there), a DTMF
 keypad for IVR menus, remote + local (PiP) video tiles, status/duration header. Props:
 `controller`, `enabledCallTypes?`, `context?`, `device?`, `displayName?`. Pure RN primitives.
 
@@ -104,6 +108,33 @@ with `initialProperties` (`backendBaseUrl`, `enabledCallTypes`, `authToken`, `co
 `Notification.Name.connectWebrtcEvent` (iOS) or `ConnectWebrtcHostEvents.listener` (Android) — the
 RN counterpart of the Flutter host bridge. Walk-through with full Swift/Kotlin host code:
 [GETTING_STARTED.md §9](./GETTING_STARTED.md#9-embedding-in-an-existing-native-iosandroid-app-brownfield).
+
+**Integrate once, launch from anywhere.** Register the component once (`registerConnectCallApp()`
+in your JS entry) and keep ONE app-wide React host; any native screen can then present the call
+by mounting `ConnectCallApp` with that screen's own `initialProperties.context` — no per-feature
+declarations. In a pure-RN app the same applies through composition: one `ConnectWebRtcController`
+(or one `<ConnectCallScreen>` route), and each screen navigates to it passing its own `context`
+prop. The pattern mirrors the Flutter hosts' `SupportCallLauncher` (see ../INTEGRATION.md §3):
+
+```ts
+// supportCall.ts — the ONE integration point for a pure-RN app
+export const supportController = new ConnectWebRtcController(
+  { backendBaseUrl: Config.BACKEND_BASE_URL, callKitEnabled: true },
+  () => auth.getJwt(),
+);
+
+// App.tsx — ONE route hosts the call screen
+<Stack.Screen name="SupportCall">
+  {({ route }) => (
+    <ConnectCallScreen controller={supportController} context={route.params?.context} />
+  )}
+</Stack.Screen>
+
+// From ANY screen/feature:
+navigation.navigate('SupportCall', {
+  context: { issueType: 'billing', lastScreen: 'payments' },
+});
+```
 
 ## 3. Routing context → the right queue
 

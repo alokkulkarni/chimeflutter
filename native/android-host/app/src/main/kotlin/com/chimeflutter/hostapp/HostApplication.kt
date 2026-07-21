@@ -70,11 +70,13 @@ class HostApplication : Application() {
                 )
                 "getAuthToken" -> result.success(AuthService.currentJwt())
                 "getCustomerContext" -> result.success(
-                    mapOf(
-                        "issueType" to "billing",
-                        "tier" to AuthService.customerTier,
-                        "lastScreen" to "card_details",
-                    ),
+                    // App-wide base context (identity level), overlaid with the launching
+                    // feature's contribution (SupportCallLauncher.launch(context = ...)) — so any
+                    // screen can route its calls without its own integration.
+                    buildMap {
+                        put("tier", AuthService.customerTier)
+                        putAll(SupportCallLauncher.launchContext)
+                    },
                 )
                 "onCallStateChanged" -> {
                     @Suppress("UNCHECKED_CAST")

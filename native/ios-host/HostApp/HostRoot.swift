@@ -58,9 +58,12 @@ struct HomeView: View {
                     Image(systemName: "creditcard").font(.system(size: 64)).foregroundColor(.indigo)
                     Text("Your account").font(.title)
                     Button {
-                        // Present the embedded Flutter module; it handles sign-in + starting the
-                        // call (which the plugin reports to CallKit).
-                        showingCall = true
+                        // Launch via the app-wide launcher with THIS entry point's routing
+                        // context — the sheet presentation and Flutter integration stay at root.
+                        SupportCallLauncher.shared.launch(context: [
+                            "issueType": "general",
+                            "lastScreen": "home",
+                        ])
                     } label: {
                         Label("Call support", systemImage: "phone.fill").frame(maxWidth: .infinity)
                     }
@@ -75,6 +78,9 @@ struct HomeView: View {
                         }
                         .navigationTitle("Account details")
                     }
+                    // A separate FEATURE screen with its own call entry point — proves any screen
+                    // can start a call (with its own context) without extra integration.
+                    NavigationLink("Payments") { PaymentsView() }
                     Spacer()
                 }
                 .navigationTitle("Home")
@@ -100,6 +106,36 @@ struct HomeView: View {
             callActive = false
             showingCall = false
         }
+        // Any screen can request a call via SupportCallLauncher — the ONE sheet here presents it.
+        .onReceive(NotificationCenter.default.publisher(for: .chimeCallRequested)) { _ in
+            showingCall = true
+        }
+    }
+}
+
+/// A demo FEATURE screen: proves any screen can start a support call with its own routing context
+/// (billing, payments, a product id) without touching the Flutter integration — the engine,
+/// bridge and call sheet all live once at app level.
+struct PaymentsView: View {
+    var body: some View {
+        List {
+            Section("Recent payments") {
+                Label("£120.00 — Acme Energy", systemImage: "bolt.fill")
+                Label("£54.20 — City Water", systemImage: "drop.fill")
+            }
+            Section {
+                Button {
+                    SupportCallLauncher.shared.launch(context: [
+                        "issueType": "billing",
+                        "lastScreen": "payments",
+                        "productId": "PAY-8842",
+                    ])
+                } label: {
+                    Label("Call about a payment", systemImage: "phone.fill")
+                }
+            }
+        }
+        .navigationTitle("Payments")
     }
 }
 

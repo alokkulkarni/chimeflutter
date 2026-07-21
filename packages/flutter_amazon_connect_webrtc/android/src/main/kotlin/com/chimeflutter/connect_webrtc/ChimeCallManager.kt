@@ -2,6 +2,8 @@ package com.chimeflutter.connect_webrtc
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import com.amazonaws.services.chime.sdk.meetings.audiovideo.AttendeeInfo
@@ -48,6 +50,16 @@ class ChimeCallManager(
     private var started = false
     private var isMuted = false
     private var focusRequest: android.media.AudioFocusRequest? = null
+    private var lastRoute: String? = null
+
+    /** Standalone mode only: re-classifies the route when audio devices come and go (a bluetooth
+     * headset connecting mid-call, headphones plugged in). Telecom mode gets the route from the
+     * `currentCallEndpoint` flow instead. */
+    private val deviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = emitStandaloneRoute()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = emitStandaloneRoute()
+    }
+    private var deviceCallbackRegistered = false
 
     private val audioVideo get() = meetingSession?.audioVideo
 
@@ -84,6 +96,7 @@ class ChimeCallManager(
                     onActive = { startMedia() },
                     onDisconnected = { stopMedia() },
                     onMuteChanged = { muted -> applyMuteFromSystem(muted) },
+                    onRouteChanged = { route -> emitRoute(route) },
                 )
             } else {
                 manager.startOutgoingCall(
@@ -92,11 +105,15 @@ class ChimeCallManager(
                     onActive = { startMedia() },
                     onDisconnected = { stopMedia() },
                     onMuteChanged = { muted -> applyMuteFromSystem(muted) },
+                    onRouteChanged = { route -> emitRoute(route) },
                 )
             }
         } else {
             usingTelecom = false
             requestAudioFocus()
+            audioManager.registerAudioDeviceCallback(deviceCallback, null)
+            deviceCallbackRegistered = true
+            emitStandaloneRoute()
             startMedia()
         }
     }
@@ -133,6 +150,11 @@ class ChimeCallManager(
         meetingSession = null
         started = false
         if (!usingTelecom) abandonAudioFocus()
+        if (deviceCallbackRegistered) {
+            audioManager.unregisterAudioDeviceCallback(deviceCallback)
+            deviceCallbackRegistered = false
+        }
+        lastRoute = null
         stopForegroundService()
         telecom = null
         usingTelecom = false
@@ -165,15 +187,47 @@ class ChimeCallManager(
 
     fun setSpeakerphone(enabled: Boolean) {
         if (usingTelecom) {
-            // Telecom owns audio routing — route the change through it (never AudioManager directly).
-            if (telecom?.setSpeaker(enabled) == true) {
-                emit(mapOf("type" to "audioRouteChanged", "route" to if (enabled) "speaker" else "receiver"))
-            }
+            // Telecom owns audio routing — route the change through it (never AudioManager
+            // directly). The resulting route is reported by the currentCallEndpoint collector.
+            telecom?.setSpeaker(enabled)
             return
         }
         @Suppress("DEPRECATION")
         audioManager.isSpeakerphoneOn = enabled
-        emit(mapOf("type" to "audioRouteChanged", "route" to if (enabled) "speaker" else "receiver"))
+        emitStandaloneRoute()
+    }
+
+    // MARK: audio route (standalone mode — Telecom mode reports via currentCallEndpoint)
+
+    /** Best-effort route classification from AudioManager state + connected output devices. */
+    private fun currentStandaloneRoute(): String {
+        @Suppress("DEPRECATION")
+        if (audioManager.isSpeakerphoneOn) return "speaker"
+        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        if (devices.any {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+            }
+        ) {
+            return "bluetooth"
+        }
+        if (devices.any {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+            }
+        ) {
+            return "headset"
+        }
+        return "receiver"
+    }
+
+    private fun emitStandaloneRoute() = emitRoute(currentStandaloneRoute())
+
+    private fun emitRoute(route: String) {
+        if (route == lastRoute) return
+        lastRoute = route
+        emit(mapOf("type" to "audioRouteChanged", "route" to route))
     }
 
     fun bindVideoView(view: VideoRenderView, tileId: Int) {
