@@ -209,7 +209,9 @@ retries once on expiry, exactly like the Flutter module's keypad.
    notification.
 3. The agent's CCP pops the contact, routed by your flow's attribute checks (`tier=gold` →
    Priority in the demo flow).
-4. Try mute (system UI stays in sync — that's CallKit/Telecom), speaker (routes through the
+4. Try mute (system UI stays in sync — that's CallKit/Telecom), speaker — the audio button
+   mirrors the real OS route: with a bluetooth headset or wired headphones connected it shows a
+   Bluetooth/Headset glyph like the system call screen (routes through the
    platform call framework, so it actually gets loud), `sendDtmf('1')` against an IVR menu, and
    hang up from either side.
 

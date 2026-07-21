@@ -49,6 +49,7 @@ class ConnectTelecomManager(context: Context) {
         onActive: () -> Unit,
         onDisconnected: () -> Unit,
         onMuteChanged: (Boolean) -> Unit,
+        onRouteChanged: (String) -> Unit = {},
     ) {
         val attributes = CallAttributesCompat(
             displayName = displayName,
@@ -81,6 +82,9 @@ class ConnectTelecomManager(context: Context) {
                 launch { isMuted.collect { onMuteChanged(it) } }
                 // Track available audio endpoints so the app's speaker toggle can route via Telecom.
                 launch { availableEndpoints.collect { endpoints = it } }
+                // Report the ACTIVE endpoint (earpiece/speaker/bluetooth/wired headset) so the app
+                // UI can mirror the system call screen's route indicator.
+                launch { currentCallEndpoint.collect { onRouteChanged(routeName(it)) } }
             }
         }
     }
@@ -97,6 +101,7 @@ class ConnectTelecomManager(context: Context) {
         onActive: () -> Unit,
         onDisconnected: () -> Unit,
         onMuteChanged: (Boolean) -> Unit,
+        onRouteChanged: (String) -> Unit = {},
     ) {
         val callType = if (isVideo) {
             CallAttributesCompat.CALL_TYPE_VIDEO_CALL
@@ -127,6 +132,7 @@ class ConnectTelecomManager(context: Context) {
                 }
                 launch { isMuted.collect { onMuteChanged(it) } }
                 launch { availableEndpoints.collect { endpoints = it } }
+                launch { currentCallEndpoint.collect { onRouteChanged(routeName(it)) } }
             }
         }
     }
@@ -138,16 +144,35 @@ class ConnectTelecomManager(context: Context) {
     }
 
     /**
-     * Routes audio to the speaker/earpiece via Telecom (the routing owner when core-telecom is in
-     * use — calling AudioManager directly would conflict). Returns false if no matching endpoint.
+     * Routes audio to/away from the speaker via Telecom (the routing owner when core-telecom is in
+     * use — calling AudioManager directly would conflict). Speaker OFF returns to what the OS would
+     * pick — bluetooth, then wired headset, then the earpiece — matching the system call screen.
+     * Returns false if no matching endpoint. The resulting route is reported via the
+     * `currentCallEndpoint` collector, not assumed by the caller.
      */
     fun setSpeaker(enabled: Boolean): Boolean {
-        val wantedType =
-            if (enabled) CallEndpointCompat.TYPE_SPEAKER else CallEndpointCompat.TYPE_EARPIECE
-        val target = endpoints.firstOrNull { it.type == wantedType } ?: return false
+        val preference = if (enabled) {
+            listOf(CallEndpointCompat.TYPE_SPEAKER)
+        } else {
+            listOf(
+                CallEndpointCompat.TYPE_BLUETOOTH,
+                CallEndpointCompat.TYPE_WIRED_HEADSET,
+                CallEndpointCompat.TYPE_EARPIECE,
+            )
+        }
+        val target = preference.firstNotNullOfOrNull { wanted -> endpoints.firstOrNull { it.type == wanted } }
+            ?: return false
         val current = control ?: return false
         scope.launch { current.requestEndpointChange(target) }
         return true
+    }
+
+    /** Maps a Telecom endpoint onto the event contract's routes (`speaker|receiver|bluetooth|headset`). */
+    private fun routeName(endpoint: CallEndpointCompat): String = when (endpoint.type) {
+        CallEndpointCompat.TYPE_SPEAKER -> "speaker"
+        CallEndpointCompat.TYPE_BLUETOOTH -> "bluetooth"
+        CallEndpointCompat.TYPE_WIRED_HEADSET -> "headset"
+        else -> "receiver" // earpiece / streaming / unknown
     }
 
     /** Ends the Telecom call (from an app-initiated hang-up). Triggers the `onDisconnect` callback. */

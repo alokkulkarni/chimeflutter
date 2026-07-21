@@ -7,4 +7,6 @@
     <string name="call_in_progress">Support call in progress</string>
     <string name="phone_account_label">ChimeFlutter Support</string>
     <string name="return_to_call">📞 Call in progress — tap to return</string>
+    <string name="payments_title">Payments</string>
+    <string name="call_about_payment">Call about a payment</string>
 </resources>

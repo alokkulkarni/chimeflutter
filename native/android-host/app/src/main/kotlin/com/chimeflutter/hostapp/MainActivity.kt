@@ -75,6 +75,16 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener { requestPermissionsThenCall() }
             },
         )
+        // A separate FEATURE screen with its own call entry point — proves any screen can start a
+        // call (with its own context) via SupportCallLauncher, without extra integration.
+        content.addView(
+            Button(this).apply {
+                text = getString(R.string.payments_title)
+                setOnClickListener {
+                    startActivity(android.content.Intent(this@MainActivity, PaymentsActivity::class.java))
+                }
+            },
+        )
         root.addView(content)
         setContentView(root)
 
@@ -100,8 +110,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchCall() {
-        // Present the embedded Flutter module; it handles sign-in + starting the call (which the
-        // plugin reports to Telecom).
-        startActivity(FlutterActivity.withCachedEngine(HostApplication.ENGINE_ID).build(this))
+        // Launch via the app-wide launcher with THIS entry point's routing context — the Flutter
+        // integration (engine + bridge) stays in HostApplication.
+        SupportCallLauncher.launch(
+            this,
+            context = mapOf(
+                "issueType" to "general",
+                "lastScreen" to "home",
+            ),
+        )
     }
 }

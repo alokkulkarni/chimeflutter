@@ -76,11 +76,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 // auth. Empty string = no Authorization header.
                 result(AuthService.shared.currentJwt())
             case "getCustomerContext":
-                result([
-                    "issueType": "billing",
-                    "tier": AuthService.shared.customerTier,
-                    "lastScreen": "card_details",
-                ])
+                // App-wide base context (identity level), overlaid with the launching feature's
+                // contribution (SupportCallLauncher.launch(context:)) — so any screen can route
+                // its calls without its own integration.
+                var context = ["tier": AuthService.shared.customerTier]
+                for (key, value) in SupportCallLauncher.shared.launchContext {
+                    context[key] = value
+                }
+                result(context)
             case "onCallStateChanged":
                 let state = (call.arguments as? [String: Any])?["state"] as? String ?? ""
                 NSLog("Call state: \(state)")

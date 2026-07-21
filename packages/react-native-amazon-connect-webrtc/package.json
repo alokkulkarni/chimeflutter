@@ -1,6 +1,6 @@
 {
   "name": "react-native-amazon-connect-webrtc",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Place VoIP audio / WebRTC video calls into Amazon Connect from React Native, using the native Amazon Chime SDKs with CallKit (iOS) and Telecom (Android) system-call integration.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

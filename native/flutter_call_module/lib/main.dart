@@ -214,6 +214,10 @@ class _CallHomeState extends State<CallHome> {
   bool _muted = false;
   bool _speakerOn = false;
   bool _videoOn = false;
+
+  /// The ACTIVE audio output as reported by the OS (`speaker | receiver | bluetooth | headset`) —
+  /// drives the audio button's icon/label like the system call screen's route indicator.
+  String _route = 'receiver';
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
 
@@ -256,6 +260,7 @@ class _CallHomeState extends State<CallHome> {
       _muted = false;
       _speakerOn = false;
       _videoOn = false;
+      _route = 'receiver';
       _elapsed = Duration.zero;
     }
     setState(() {});
@@ -270,8 +275,25 @@ class _CallHomeState extends State<CallHome> {
         if (_localTile == e.tileId) _localTile = null;
       }
       if (e is MuteChanged) _muted = e.muted;
+      if (e is AudioRouteChanged) {
+        _route = e.route;
+        _speakerOn = e.route == 'speaker';
+      }
       if (e is CallErrorEvent) _error = '${e.code}: ${e.message}';
     });
+  }
+
+  /// Routing context for UI-dialed calls — the native host's `getCustomerContext` map (the same
+  /// source host-initiated calls use), so the host stays the single owner of customer context.
+  /// Falls back to the demo values on a standalone `flutter run` (no host handler).
+  Future<Map<String, String>> _routingContext() async {
+    try {
+      final context = await HostBridge.getCustomerContext();
+      if (context.isNotEmpty) return context;
+    } catch (_) {
+      // No host handler (standalone run) — use the demo context below.
+    }
+    return const {'issueType': 'billing', 'tier': 'gold'};
   }
 
   Future<void> _start(CallType type) async {
@@ -280,7 +302,7 @@ class _CallHomeState extends State<CallHome> {
       await _controller.startCall(CallRequest(
         callType: type,
         device: DeviceInfo.forCurrentPlatform(),
-        context: const {'issueType': 'billing', 'tier': 'gold'},
+        context: await _routingContext(),
       ));
       if (type == CallType.video) {
         await _controller.enableLocalVideo();
@@ -300,10 +322,10 @@ class _CallHomeState extends State<CallHome> {
     setState(() => _videoOn = !_videoOn);
   }
 
-  Future<void> _toggleSpeaker() async {
-    await _controller.setSpeakerphone(!_speakerOn);
-    setState(() => _speakerOn = !_speakerOn);
-  }
+  /// Forces the speaker on, or — when already on speaker — hands routing back to the OS (which
+  /// returns to bluetooth/headset when one is connected, else the earpiece). The button's state is
+  /// driven by the resulting [AudioRouteChanged] event, not assumed here.
+  Future<void> _toggleSpeaker() => _controller.setSpeakerphone(_route != 'speaker');
 
   @override
   void dispose() {
@@ -523,10 +545,21 @@ class _CallHomeState extends State<CallHome> {
               label: 'Mute',
               onTap: () => _controller.setMuted(!_muted),
             ),
+            // Mirrors the system call screen's route indicator: bluetooth/wired headsets show
+            // their own icon + label, so the user can see where the audio actually is.
             _roundButton(
-              icon: _speakerOn ? Icons.volume_up : Icons.volume_down,
+              icon: switch (_route) {
+                'bluetooth' => Icons.bluetooth_audio,
+                'headset' => Icons.headset,
+                'speaker' => Icons.volume_up,
+                _ => Icons.volume_down,
+              },
               active: _speakerOn,
-              label: 'Speaker',
+              label: switch (_route) {
+                'bluetooth' => 'Bluetooth',
+                'headset' => 'Headset',
+                _ => 'Speaker',
+              },
               onTap: _toggleSpeaker,
             ),
             if (widget.config.videoEnabled)

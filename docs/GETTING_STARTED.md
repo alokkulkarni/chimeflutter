@@ -610,7 +610,9 @@ builds, put real values in `HostConfig` (or wire your own remote config).
    shows the ongoing-call notification.
 4. The agent's CCP pops the contact — routed by your flow to the queue matching the attributes
    (`tier=gold` → Priority in the demo).
-5. In-call: try mute, speaker (it routes through CallKit/Telecom, so it actually gets loud),
+5. In-call: try mute, speaker (it routes through CallKit/Telecom, so it actually gets loud —
+   and the audio button mirrors the real OS route: connect a bluetooth headset or plug in
+   headphones and it switches to a Bluetooth/Headset icon, like the system call screen),
    **Keypad** → press digits to drive an IVR, and minimize (swipe down on iOS / back gesture on
    Android) → browse your app with the green bar showing → tap it to return.
 6. Hang up from either side; state goes `disconnected` and the backend `DELETE /calls/{contactId}`

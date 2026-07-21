@@ -20,6 +20,11 @@ final class ChimeCallManager: NSObject {
     /// `didActivate` fires before the join credentials are fetched — `join` checks this flag and
     /// starts media immediately instead of waiting for a `didActivate` that already happened.
     private var callKitAudioActive = false
+    private var routeObserver: NSObjectProtocol?
+    private var lastRoute: String?
+    /// True after the user explicitly turned the speaker ON this call — stops the headset-default
+    /// logic from fighting an intentional speaker choice.
+    private var userForcedSpeaker = false
 
     init(emitter: ChimeEventEmitter) {
         self.emitter = emitter
@@ -42,6 +47,9 @@ final class ChimeCallManager: NSObject {
         audioVideo.addRealtimeObserver(observer: self)
         audioVideo.addVideoTileObserver(observer: self)
 
+        // With CallKit the session is not active yet — reading the route now would report the
+        // ambient media default (loudspeaker), so the initial emit waits for activation.
+        observeAudioRouteChanges(emitInitial: !callKitEnabled)
         emitState("connecting")
 
         if callKitEnabled {
@@ -58,6 +66,7 @@ final class ChimeCallManager: NSObject {
         // Remote video is opt-in on the Chime iOS SDK — without this the agent's video tile never
         // arrives (parity with Android). Harmless for audio-only calls.
         audioVideo.startRemoteVideo()
+        applyPreferredHeadsetRoute()
     }
 
     /// Called by the CallKit coordinator from `CXProvider(_:didActivate:)`. Starts the Chime media
@@ -70,6 +79,10 @@ final class ChimeCallManager: NSObject {
             try audioVideo.start(callKitEnabled: true)
             audioVideo.startRemoteVideo()
             if isMuted { _ = audioVideo.realtimeLocalMute() }
+            // The session is active now — route to a connected headset (phone-app default) and
+            // report the real route (the initial emit was skipped for CallKit).
+            applyPreferredHeadsetRoute()
+            emitAudioRouteIfChanged()
         } catch {
             emitter?.emit(["type": "error", "code": "sdkError",
                            "message": "audio start failed: \(error)", "fatal": true])
@@ -90,6 +103,8 @@ final class ChimeCallManager: NSObject {
         mediaStarted = false
         isMuted = false
         callKitAudioActive = false
+        userForcedSpeaker = false
+        stopObservingAudioRouteChanges()
         deactivateAudioSession()
         emitState("disconnected")
     }
@@ -126,21 +141,28 @@ final class ChimeCallManager: NSObject {
     func setSpeakerphone(_ enabled: Bool) {
         // Prefer the Chime SDK's device controller — it owns the audio session (with CallKit, a raw
         // AVAudioSession override can be reverted by the system). Fall back to the session override
-        // if the expected device isn't listed.
+        // if the expected device isn't listed. Speaker OFF returns to what the OS would pick —
+        // bluetooth, then wired headset, then the earpiece — matching the system call screen.
+        // The resulting route is reported via the routeChangeNotification observer, not assumed here.
+        userForcedSpeaker = enabled
         if let audioVideo = meetingSession?.audioVideo {
             let devices = audioVideo.listAudioDevices()
-            let target = devices.first {
-                enabled ? $0.type == .audioBuiltInSpeaker : $0.type == .audioHandset
-            }
+            let preference: [MediaDeviceType] = enabled
+                ? [.audioBuiltInSpeaker]
+                : [.audioBluetooth, .audioWiredHeadset, .audioHandset]
+            let target = preference.compactMap { wanted in devices.first { $0.type == wanted } }.first
             if let target = target {
+                if !enabled {
+                    // Chime's chooseAudioDevice(non-speaker) only sets the preferred INPUT — it
+                    // never clears a loudspeaker override, so the output would stay on the speaker.
+                    try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+                }
                 audioVideo.chooseAudioDevice(mediaDevice: target)
-                emitter?.emit(["type": "audioRouteChanged", "route": enabled ? "speaker" : "receiver"])
                 return
             }
         }
         let session = AVAudioSession.sharedInstance()
         try? session.overrideOutputAudioPort(enabled ? .speaker : .none)
-        emitter?.emit(["type": "audioRouteChanged", "route": enabled ? "speaker" : "receiver"])
     }
 
     /// Binds a native render view to a tile (called by the platform view factory).
@@ -165,6 +187,71 @@ final class ChimeCallManager: NSObject {
 
     private func deactivateAudioSession() {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - Audio route
+
+    /// Watches the OS audio route (bluetooth headset connecting, wired headphones plugged in,
+    /// speaker override) and reports every change, so the in-app UI can mirror the system call
+    /// screen's route indicator instead of guessing from its own speaker toggle.
+    private func observeAudioRouteChanges(emitInitial: Bool) {
+        guard routeObserver == nil else { return }
+        routeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.emitAudioRouteIfChanged()
+        }
+        // Initial route so the UI is correct before any change (e.g. bluetooth already connected).
+        if emitInitial { emitAudioRouteIfChanged() }
+    }
+
+    /// The phone-app default the Chime meetings SDK doesn't apply: when a bluetooth or wired
+    /// headset is connected at call start, route the call audio to it (unless the user explicitly
+    /// forced the speaker). Chime routes via `setPreferredInput`; iOS then uses the paired output.
+    private func applyPreferredHeadsetRoute() {
+        guard !userForcedSpeaker, let audioVideo = meetingSession?.audioVideo else { return }
+        let current = currentAudioRoute()
+        guard current != "bluetooth" && current != "headset" else { return }
+        let devices = audioVideo.listAudioDevices()
+        let preferred = [MediaDeviceType.audioBluetooth, .audioWiredHeadset]
+            .compactMap { wanted in devices.first { $0.type == wanted } }.first
+        guard let preferred = preferred else { return }
+        // Clear any loudspeaker override first — chooseAudioDevice(non-speaker) never does.
+        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+        audioVideo.chooseAudioDevice(mediaDevice: preferred)
+    }
+
+    private func stopObservingAudioRouteChanges() {
+        if let observer = routeObserver { NotificationCenter.default.removeObserver(observer) }
+        routeObserver = nil
+        lastRoute = nil
+    }
+
+    private func emitAudioRouteIfChanged() {
+        let route = currentAudioRoute()
+        guard route != lastRoute else { return }
+        lastRoute = route
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portType.rawValue }
+        logger.info(msg: "audio route -> \(route) (outputs: \(outputs))")
+        emitter?.emit(["type": "audioRouteChanged", "route": route])
+    }
+
+    /// Classifies the session's active output into the event contract's four routes
+    /// (`speaker | receiver | bluetooth | headset`).
+    private func currentAudioRoute() -> String {
+        for output in AVAudioSession.sharedInstance().currentRoute.outputs {
+            switch output.portType {
+            case .builtInSpeaker, .airPlay:
+                return "speaker"
+            case .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .carAudio:
+                return "bluetooth"
+            case .headphones, .usbAudio:
+                return "headset"
+            default:
+                continue
+            }
+        }
+        return "receiver"
     }
 
     // MARK: - Helpers

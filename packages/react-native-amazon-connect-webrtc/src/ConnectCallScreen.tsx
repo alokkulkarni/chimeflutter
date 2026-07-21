@@ -98,7 +98,10 @@ export function ConnectCallScreen({
 
   const [state, setState] = useState<CallState>(controller.getState());
   const [muted, setMuted] = useState(false);
-  const [speakerOn, setSpeakerOn] = useState(false);
+  // The ACTIVE audio output as reported by the OS — drives the audio button's icon/label like the
+  // system call screen's route indicator (bluetooth/wired headsets show as such).
+  const [route, setRoute] = useState<'speaker' | 'receiver' | 'bluetooth' | 'headset'>('receiver');
+  const speakerOn = route === 'speaker';
   const [videoOn, setVideoOn] = useState(false);
   const [remoteTile, setRemoteTile] = useState<number | null>(null);
   const [localTile, setLocalTile] = useState<number | null>(null);
@@ -143,6 +146,7 @@ export function ConnectCallScreen({
         setLocalTile((t) => (t === e.tileId ? null : t));
       }
       if (e.type === 'muteChanged') setMuted(e.muted);
+      if (e.type === 'audioRouteChanged') setRoute(e.route);
       if (e.type === 'error') setError(`${e.code}: ${e.message}`);
     });
     return () => {
@@ -169,7 +173,7 @@ export function ConnectCallScreen({
     if (state === 'disconnected' || state === 'failed') {
       setElapsed(0);
       setMuted(false);
-      setSpeakerOn(false);
+      setRoute('receiver');
       setVideoOn(false);
       setKeypadVisible(false);
       setDialed('');
@@ -278,15 +282,24 @@ export function ConnectCallScreen({
                 active={muted}
                 onPress={() => controller.setMuted(!muted)}
               />
+              {/* Mirrors the system call screen's route indicator: bluetooth/wired headsets show
+                  their own glyph + label. Button state follows the audioRouteChanged event, not an
+                  optimistic toggle — turning the speaker off hands routing back to the OS (which
+                  returns to bluetooth/headset when one is connected, else the earpiece). */}
               <ControlButton
-                label="Speaker"
-                accessibilityLabel={speakerOn ? 'Turn speaker off' : 'Turn speaker on'}
-                glyph="🔊"
+                label={route === 'bluetooth' ? 'Bluetooth' : route === 'headset' ? 'Headset' : 'Speaker'}
+                accessibilityLabel={
+                  speakerOn
+                    ? 'Turn speaker off'
+                    : route === 'bluetooth'
+                      ? 'Audio on Bluetooth. Turn speaker on'
+                      : route === 'headset'
+                        ? 'Audio on headset. Turn speaker on'
+                        : 'Turn speaker on'
+                }
+                glyph={route === 'bluetooth' || route === 'headset' ? '🎧' : speakerOn ? '🔊' : '🔈'}
                 active={speakerOn}
-                onPress={async () => {
-                  await controller.setSpeakerphone(!speakerOn);
-                  setSpeakerOn(!speakerOn);
-                }}
+                onPress={() => controller.setSpeakerphone(!speakerOn)}
               />
               {videoEnabled && (
                 <ControlButton

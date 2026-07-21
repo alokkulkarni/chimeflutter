@@ -33,9 +33,9 @@ APNs VoIP / FCM push into the OS incoming‑call UI). See
 |------|---------|
 | [`specs/`](./specs) | Spec‑driven development artefacts: requirements, architecture, **API & channel contracts** (the single source of truth shared by every codebase), sequences, security, test strategy. |
 | [`backend/`](./backend) | The shared backend ([full reference](./docs/BACKEND.md)): API Gateway (HTTP API) + Lambdas — start/end call (`StartWebRTCContact`/`StopContact`), participant connection + **DTMF**, **simulated‑outbound** (device registry, agent‑availability gate, push via SNS, answer/decline, ring‑timeout sweeper), health. Least‑privilege IAM, attribute allow‑listing, bring‑your‑own auth. Deploys via **SAM or Docker** (identical handlers; role‑based AWS access in containers). TypeScript, 127 Jest tests. |
-| [`packages/flutter_amazon_connect_webrtc/`](./packages/flutter_amazon_connect_webrtc) | The **Flutter plugin**. Dart API + iOS (Swift/Chime SDK/CallKit) + Android (Kotlin/Chime SDK/Telecom) implementations, incl. incoming‑call (simulated outbound) support. 46 Dart tests. |
+| [`packages/flutter_amazon_connect_webrtc/`](./packages/flutter_amazon_connect_webrtc) | The **Flutter plugin**. Dart API + iOS (Swift/Chime SDK/CallKit) + Android (Kotlin/Chime SDK/Telecom) implementations, incl. incoming‑call (simulated outbound) support and OS audio‑route reporting (bluetooth/headset). 46 Dart tests. |
 | [`packages/flutter_amazon_connect_webrtc/example/`](./packages/flutter_amazon_connect_webrtc/example) | A pure‑Flutter example app that exercises the plugin end‑to‑end. |
-| [`packages/react-native-amazon-connect-webrtc/`](./packages/react-native-amazon-connect-webrtc) | The **React Native library** — same backend, same contract, native managers ported verbatim from the device‑verified Flutter plugin. Prebuilt call screen, brownfield (existing‑native‑app) embedding, incoming‑call support, zero runtime npm deps, 48 Jest tests, `npm audit` clean. |
+| [`packages/react-native-amazon-connect-webrtc/`](./packages/react-native-amazon-connect-webrtc) | The **React Native library** — same backend, same contract, native managers ported verbatim from the device‑verified Flutter plugin. Prebuilt call screen, brownfield (existing‑native‑app) embedding, incoming‑call support, OS audio‑route reporting (bluetooth/headset), zero runtime npm deps, 49 Jest tests, `npm audit` clean. |
 | [`native/flutter_call_module/`](./native/flutter_call_module) | The Flutter **add‑to‑app module**: complete call UI (chooser or auto‑dial via `enabledCallTypes`, DTMF keypad, video tiles) + the host platform‑channel bridge. |
 | [`native/ios-host/`](./native/ios-host) | A **native SwiftUI** iOS app embedding the Flutter module add‑to‑app, with CallKit, green return‑to‑call bar, sheet‑minimize. |
 | [`native/android-host/`](./native/android-host) | A **native Kotlin** Android app embedding the module as **AARs**, with Telecom, return‑to‑call banner, back‑gesture minimize. |
@@ -98,7 +98,7 @@ feature set. The backend is deployed and live‑tested (127 Jest tests + smoke t
 real Connect instance), and its **Docker deployment is verified** too — the container hosts the
 identical Lambda handlers (image built and smoke‑tested locally; role‑based AWS credentials at
 runtime, see [docs/BACKEND.md](./docs/BACKEND.md)). The React Native library shares the same contract and verbatim‑ported native
-managers, with a fully tested TypeScript core (48 tests, `npm audit` 0 vulnerabilities); compiling
+managers, with a fully tested TypeScript core (49 tests, `npm audit` 0 vulnerabilities); compiling
 its native modules requires embedding in an RN host app — the release checklist in
 [docs/react-native/PUBLISHING.md](./docs/react-native/PUBLISHING.md) gates on that device smoke
 test. **Simulated‑outbound (agent‑initiated) calling** is implemented and unit‑tested across the

@@ -66,6 +66,55 @@ if (remoteTile != null) ConnectVideoView(tileId: remoteTile!);
 > `controller.enableLocalVideo()` (e.g. from a "turn on camera" button, as the example does) when you
 > want to send video. This keeps the customer in control of their camera.
 
+### Integrate once, launch from anywhere (pure Flutter)
+
+No host bridge is needed — everything stays in Dart. Create ONE controller at app level and expose
+a tiny facade; any screen launches with its own routing context:
+
+```dart
+/// support_call.dart — the ONE integration point for the whole app.
+class SupportCall {
+  SupportCall._();
+
+  static final controller = ConnectWebRtcController(
+    config: ConnectWebRtcConfig(
+      backendBaseUrl: Uri.parse(const String.fromEnvironment('BACKEND_BASE_URL')),
+      callKitEnabled: true,
+      callDisplayName: 'Support',
+    ),
+    tokenProvider: () => myAuth.getJwt(),
+  );
+
+  /// Call from ANY screen/feature with that screen's routing contribution.
+  static Future<void> launch(BuildContext context,
+      {CallType callType = CallType.audio, Map<String, String> routing = const {}}) async {
+    Navigator.of(context, rootNavigator: true)
+        .push(MaterialPageRoute(builder: (_) => const MyCallScreen()));
+    await controller.startCall(CallRequest(
+      callType: callType,
+      device: DeviceInfo.forCurrentPlatform(),
+      context: routing,
+    ));
+  }
+}
+
+// From a payments screen, a product page, a deep link…:
+SupportCall.launch(context, routing: {'issueType': 'billing', 'lastScreen': 'payments'});
+```
+
+The controller enforces one call at a time, and its `states`/`events` streams are observable from
+anywhere (e.g. a global "return to call" banner). The host bridge and `SupportCallLauncher` exist
+only for NATIVE apps (§3), which cannot call Dart directly.
+
+> **Audio route.** `AudioRouteChanged {route}` reports the ACTIVE OS output —
+> `speaker | receiver | bluetooth | headset` — on join and whenever it changes (bluetooth headset
+> connecting, headphones plugged in/out, speaker toggled, including from the system call UI). Drive
+> your speaker button's icon/state from this event like the system call screen does, instead of
+> toggling it optimistically; `setSpeakerphone(false)` hands routing back to the OS preference
+> (bluetooth → wired headset → earpiece). On iOS the plugin also applies the phone-app default
+> the Chime meetings SDK doesn't: when a bluetooth/wired headset is already connected at call
+> start, the audio is routed to it automatically. The bundled call module's UI does exactly this.
+
 ### Platform config
 - **iOS** (`ios/Runner/Info.plist`): `NSMicrophoneUsageDescription`, `NSCameraUsageDescription`,
   `UIBackgroundModes = [audio, voip]`; deployment target 15.0 + the permission_handler macros (docs/PUBLISHING.md §B.3).
@@ -83,6 +132,33 @@ customer context and provides them over the host bridge (`com.chimeflutter.host/
 
 The Flutter side is [`native/flutter_call_module/lib/main.dart`](../native/flutter_call_module/lib/main.dart)
 (entrypoint `mainHost`), whose `tokenProvider` is `HostBridge.getAuthToken`.
+
+### Integrate once, launch from anywhere
+
+You wire the integration **once at app level** — the cached `FlutterEngine`, the host bridge and
+the surface that presents the call UI (a SwiftUI sheet at the root / the `FlutterActivity`). Every
+feature or screen then starts a call through a one-line app-wide facade, contributing its own
+routing context; nothing is declared per feature. Both demo hosts ship this as
+`SupportCallLauncher`:
+
+```swift
+// iOS — from ANY screen, feature module or deep-link handler:
+SupportCallLauncher.shared.launch(context: [
+  "issueType": "billing", "lastScreen": "payments", "productId": "PAY-8842",
+])
+```
+```kotlin
+// Android — from ANY activity/fragment:
+SupportCallLauncher.launch(activity, context = mapOf(
+  "issueType" to "billing", "lastScreen" to "payments", "productId" to "PAY-8842",
+))
+```
+
+The launcher records the entry point's context and shows the call UI; the bridge's
+`getCustomerContext` overlays it on the app-wide base context (identity/tier), so the values reach
+Amazon Connect as contact attributes. See the `Payments` screens in both hosts for a worked
+example (`native/ios-host/HostApp/SupportCallLauncher.swift` + `HostRoot.swift`,
+`native/android-host/.../SupportCallLauncher.kt` + `PaymentsActivity.kt`).
 
 ### Audio/video offering (`enabledCallTypes`)
 
